@@ -12,6 +12,8 @@ namespace ansi {
 // Supported sequences:
 //   - SGR (ESC[...m): attributes 0-9, 21-29, 30-37/90-97 (fg), 40-47/100-107 (bg),
 //     38/48;5;n (256-color) and 38/48;2;r;g;b (true color), 39/49 (default fg/bg).
+//   - CUF (ESC[nC, cursor-forward) is rendered as n spaces, which approximates
+//     the rightward positioning common in ANSI art without a virtual screen.
 //   - Other CSI sequences (ESC[ ... final-byte) are consumed and dropped so they
 //     do not appear as literal text.
 //

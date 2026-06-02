@@ -82,6 +82,12 @@ static void testNonSgrDropped() {
     CHECK(d.text == "ab");
 }
 
+static void testCursorForward() {
+    // CUF (ESC[4C) becomes 4 spaces; bare ESC[C defaults to 1.
+    CHECK(parse("a\x1b[4Cb").text == "a    b");
+    CHECK(parse("a\x1b[Cb").text == "a b");
+}
+
 static void testStylerDedup() {
     // Two red runs separated by a default run -> red defined once (2 styles total).
     ParsedDocument d = parse("\x1b[31mA\x1b[0mB\x1b[31mC");
@@ -120,6 +126,7 @@ int main() {
     testParseExtendedColor();
     testParseAttributes();
     testNonSgrDropped();
+    testCursorForward();
     testStylerDedup();
     testStylerStrike();
     testStylerBlink();

@@ -19,7 +19,7 @@ Code is split so the interesting logic is host-testable without Notepad++:
 
 - `src/AnsiColor.h` — shared types (`Color`, `Attr` flags, `Span`, `ParsedDocument`). No Win32/Scintilla.
 - `src/AnsiPalette.*` — 16 / 256 / true-color index → RGB.
-- `src/AnsiParser.*` — `parse()`: raw bytes with `ESC[...m` SGR → escape-free text + contiguous styled spans. Non-SGR CSI sequences are dropped.
+- `src/AnsiParser.*` — `parse()`: raw bytes with `ESC[...m` SGR → escape-free text + contiguous styled spans. `ESC[nC` (cursor-forward) becomes n spaces (approximates ANSI-art positioning); other non-SGR CSI is dropped. There is no virtual-screen model yet, so absolute cursor positioning (`H`) and erase sequences aren't honored.
 - `src/AnsiStyler.*` — `applyToEditor()`: dedups attrs into Scintilla style slots, resolves inverse via fg/bg swap, marks strike via an indicator. Talks to an abstract `IEditor` (no SDK dependency).
 - `src/PluginDefinition.*` — menu commands + `ScintillaEditor` (the `IEditor` impl that sends `SCI_*` messages).
 - `src/DllMain.cpp` — the required Notepad++ plugin exports.

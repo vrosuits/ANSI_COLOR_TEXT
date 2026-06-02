@@ -118,12 +118,21 @@ ParsedDocument parse(const std::string& input) {
             }
             if (j < n) {
                 char final = input[j];
+                std::string body = input.substr(i + 2, j - (i + 2));
                 if (final == 'm') {
                     // SGR: attribute change -> close the current span first.
                     flush(cur);
-                    applySgr(splitParams(input.substr(i + 2, j - (i + 2))), cur);
+                    applySgr(splitParams(body), cur);
+                } else if (final == 'C') {
+                    // CUF (cursor forward): real ANSI art uses this to position
+                    // graphics rightward. Render it as that many spaces under the
+                    // current attribute (default count 1). Approximates positioning
+                    // without a full virtual screen.
+                    int n = splitParams(body)[0];
+                    if (n <= 0) n = 1;
+                    doc.text.append(static_cast<size_t>(n), ' ');
                 }
-                // Non-SGR CSI (cursor moves, erase, etc.) are dropped silently.
+                // Other CSI (cursor up/down/position, erase, etc.) are dropped.
                 i = j + 1;
                 continue;
             }
