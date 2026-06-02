@@ -1,5 +1,5 @@
 #include "PluginDefinition.h"
-#include "AnsiParser.h"
+#include "AnsiScreen.h"
 #include "AnsiStyler.h"
 
 #include "Scintilla.h"
@@ -200,7 +200,9 @@ void renderAnsi() {
     g_blinkSci = nullptr;
 
     std::string raw = readDocument(h);
-    ansi::ParsedDocument doc = ansi::parse(raw);
+    // Render through the virtual screen so absolute positioning and erases in
+    // real ANSI art are honored (80-column wrap, the de-facto art width).
+    ansi::ParsedDocument doc = ansi::renderScreen(raw, 80);
 
     ansi::Color defFore, defBack;
     defaultsForBackground(g_blackBackground, defFore, defBack);

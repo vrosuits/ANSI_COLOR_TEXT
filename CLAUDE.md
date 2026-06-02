@@ -19,7 +19,9 @@ Code is split so the interesting logic is host-testable without Notepad++:
 
 - `src/AnsiColor.h` — shared types (`Color`, `Attr` flags, `Span`, `ParsedDocument`). No Win32/Scintilla.
 - `src/AnsiPalette.*` — 16 / 256 / true-color index → RGB.
-- `src/AnsiParser.*` — `parse()`: raw bytes with `ESC[...m` SGR → escape-free text + contiguous styled spans. `ESC[nC` (cursor-forward) becomes n spaces (approximates ANSI-art positioning); other non-SGR CSI is dropped. There is no virtual-screen model yet, so absolute cursor positioning (`H`) and erase sequences aren't honored.
+- `src/AnsiSgr.*` — `sgrParams()` + `applySgr()`: the single shared implementation of SGR colour/attribute parsing, used by both renderers below.
+- `src/AnsiScreen.*` — `renderScreen()`: **the renderer the plugin uses.** Replays the stream through a virtual 2D character grid with a cursor, honoring absolute positioning (`H`/`f`), cursor moves (`A/B/C/D/E/F/G/d`), save/restore (`s/u`), and erases (`J/K`), then flattens the grid into a `ParsedDocument`. Default 80-column wrap.
+- `src/AnsiParser.*` — `parse()`: the simpler *linear* renderer (streams text, approximates `ESC[nC` as spaces, drops other CSI). Kept and tested as an alternative for purely linear streams; the plugin no longer calls it.
 - `src/AnsiStyler.*` — `applyToEditor()`: dedups attrs into Scintilla style slots, resolves inverse via fg/bg swap, marks strike via an indicator. Talks to an abstract `IEditor` (no SDK dependency).
 - `src/PluginDefinition.*` — menu commands + `ScintillaEditor` (the `IEditor` impl that sends `SCI_*` messages).
 - `src/DllMain.cpp` — the required Notepad++ plugin exports.

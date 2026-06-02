@@ -1,6 +1,7 @@
 // test_core.cpp - host self-test for the ANSI parsing/styling core.
 // No Notepad++ or Scintilla needed; build via the ANSI_BUILD_TESTS CMake option.
 #include "AnsiParser.h"
+#include "AnsiScreen.h"
 #include "AnsiPalette.h"
 #include "AnsiStyler.h"
 
@@ -120,8 +121,56 @@ static void testStylerBlink() {
     CHECK(r.blinkRanges[0].length == 5); // "Blink"
 }
 
+static void testScreenBasics() {
+    // Plain text with a newline lays out on two rows.
+    CHECK(renderScreen("ab\ncd").text == "ab\ncd");
+    // CR overwrites from column 0.
+    CHECK(renderScreen("abc\rX").text == "Xbc");
+}
+
+static void testScreenAbsolutePos() {
+    // CUP to row 2, col 3 (1-based) then write: row 1 is blank, row 2 has
+    // two leading spaces before 'Z'.
+    ParsedDocument d = renderScreen("\x1b[2;3HZ");
+    CHECK(d.text == "\n  Z");
+}
+
+static void testScreenCursorMoves() {
+    // Write "AB", move cursor back 2 and up nothing, overwrite 'C' -> "CB".
+    CHECK(renderScreen("AB\x1b[2DC").text == "CB");
+    // Column-absolute (CHA) to column 1 then overwrite.
+    CHECK(renderScreen("xyz\x1b[1GQ").text == "Qyz");
+}
+
+static void testScreenEraseLine() {
+    // Erase-to-EOL (EL 0) after moving back clears the tail.
+    // "ABCDE", move to col 3 (CHA 3), erase to EOL -> "AB".
+    CHECK(renderScreen("ABCDE\x1b[3G\x1b[0K").text == "AB");
+}
+
+static void testScreenEraseDisplay() {
+    // ED 2 clears the screen; pairing with CUP home (as real art does) puts the
+    // following text at the top-left.
+    CHECK(renderScreen("junk\x1b[2J\x1b[Hok").text == "ok");
+}
+
+static void testScreenKeepsAttributes() {
+    // Color survives positioning: red 'A', jump, still-red 'B'.
+    ParsedDocument d = renderScreen("\x1b[31mA\x1b[5GB");
+    // text is "A" + 3 spaces + "B"
+    CHECK(d.text == "A   B");
+    // The 'B' cell keeps the red foreground.
+    CHECK(d.spans.back().attr.fore == Color(205, 0, 0));
+}
+
 int main() {
     testPalette();
+    testScreenBasics();
+    testScreenAbsolutePos();
+    testScreenCursorMoves();
+    testScreenEraseLine();
+    testScreenEraseDisplay();
+    testScreenKeepsAttributes();
     testParseBasic();
     testParseExtendedColor();
     testParseAttributes();

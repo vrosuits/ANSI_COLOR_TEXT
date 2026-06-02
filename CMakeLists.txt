@@ -10,7 +10,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # ---------------------------------------------------------------------------
 add_library(ansicore STATIC
     src/AnsiPalette.cpp
+    src/AnsiSgr.cpp
     src/AnsiParser.cpp
+    src/AnsiScreen.cpp
     src/AnsiStyler.cpp
 )
 target_include_directories(ansicore PUBLIC src)
