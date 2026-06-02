@@ -58,10 +58,16 @@ current source to a file.
 
 ## Installation
 
-1. Build the DLL (see below) or obtain `ANSI_COLOR_TEXT.dll` (x64).
+1. Download `ANSI_COLOR_TEXT.dll` (x64) from the
+   [**v1.0.1 release**](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/tag/v1.0.1)
+   ([direct link](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/download/v1.0.1/ANSI_COLOR_TEXT.dll)),
+   or build it yourself (see [Building](#building)).
 2. Copy it into your Notepad++ install at
    `plugins\ANSI_COLOR_TEXT\ANSI_COLOR_TEXT.dll`.
 3. Restart Notepad++. The **ANSI Color Text** submenu appears under **Plugins**.
+
+> The [latest release](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/latest)
+> always has the newest build.
 
 > ANSI art authored in code page 437 needs a CP437-capable font (e.g. an IBM VGA
 > / "Terminal" font) to display box-drawing and block glyphs correctly. The
