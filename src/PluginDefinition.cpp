@@ -204,7 +204,8 @@ VOID CALLBACK animTimerProc(HWND, UINT, UINT_PTR, DWORD) {
     if (!g_animSci) { stopAnimation(); return; }
 
     size_t chunk = static_cast<size_t>(g_settings.animChunkBytes);
-    g_animPos = (g_animPos + chunk >= g_animBytes.size()) ? g_animBytes.size() : g_animPos + chunk;
+    // Snap to a glyph boundary so a frame never ends mid-escape (flicker-free).
+    g_animPos = ansi::nextFrameBoundary(g_animBytes, g_animPos, chunk);
 
     ansi::StyleResult res = renderBytesToView(g_animSci, g_animBytes.substr(0, g_animPos));
 

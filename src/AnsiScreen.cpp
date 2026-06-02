@@ -357,4 +357,32 @@ ParsedDocument renderScreen(const std::string& input, const ScreenConfig& cfg) {
     return scr.flatten();
 }
 
+size_t nextFrameBoundary(const std::string& input, size_t pos, size_t minChunk) {
+    const size_t n = input.size();
+    if (pos >= n) return n;
+    size_t target = pos + (minChunk ? minChunk : 1);
+
+    size_t i = pos;
+    while (i < n) {
+        if (input[i] == ESC && i + 1 < n && input[i + 1] == '[') {
+            // Skip a whole CSI sequence (never a stopping point).
+            size_t j = i + 2;
+            while (j < n) {
+                unsigned char fb = static_cast<unsigned char>(input[j]);
+                if (fb >= 0x40 && fb <= 0x7E) { ++j; break; }
+                ++j;
+            }
+            i = j;
+        } else if (input[i] == ESC && i + 1 < n) {
+            i += 2;                       // two-byte ESC sequence
+        } else if (input[i] == ESC) {
+            i += 1;                       // dangling ESC at end
+        } else {
+            ++i;                          // a printable / control byte
+            if (i >= target) return i;    // end the frame right after it
+        }
+    }
+    return n;
+}
+
 } // namespace ansi

@@ -29,7 +29,7 @@ Code is split so the interesting logic is host-testable without Notepad++:
 - `src/DllMain.cpp` — the required Notepad++ plugin exports.
 - `test/test_core.cpp` — host self-test (palette, both renderers, styler).
 
-Plugin menu commands: Render ANSI Colors, Play as Animation, Stop Animation, Toggle Black/White Background, Pause/Resume Blink, Settings…, About. Animation = re-render successive byte-prefixes on a timer (configurable delay + bytes/frame), so cursor-positioned art animates.
+Plugin menu commands: Render ANSI Colors, Play as Animation, Stop Animation, Toggle Black/White Background, Pause/Resume Blink, Settings…, About. Animation = re-render successive byte-prefixes on a timer (configurable delay + bytes/frame), so cursor-positioned art animates. Frame cuts use `ansi::nextFrameBoundary()`, which snaps each prefix to the end of a printable char so a frame never ends mid-escape (flicker-free playback).
 
 ## Build & test
 

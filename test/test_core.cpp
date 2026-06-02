@@ -205,8 +205,42 @@ static void testReverseIndex() {
     CHECK(d.text == "A C\nB");
 }
 
+static void testFrameBoundary() {
+    // Boundaries always make progress, land at or past the chunk, and never
+    // split an escape (the prefix must not end with a partial ESC sequence).
+    std::string s = "\x1b[31mAB\x1b[0mC\x1b[1;5HD";
+    size_t pos = 0, guard = 0;
+    while (pos < s.size() && guard++ < 1000) {
+        size_t next = nextFrameBoundary(s, pos, 1);
+        CHECK(next > pos);
+        CHECK(next <= s.size());
+        // The byte just before the cut is a printable, not part of an escape.
+        CHECK(s[next - 1] != '\x1b');
+        pos = next;
+    }
+    CHECK(pos == s.size());
+}
+
+static void testAnimationNeverBlank() {
+    // Mimic draw-then-erase animation steps. Walking the playback with the
+    // boundary snapper, no frame after the first glyph is ever blank.
+    std::string s = "\x1b[1;1HX\x1b[1;3HY\x1b[1;1H \x1b[1;5HZ\x1b[1;3H ";
+    size_t pos = 0;
+    bool drawn = false;
+    while (pos < s.size()) {
+        pos = nextFrameBoundary(s, pos, 2);
+        ParsedDocument d = renderScreen(s.substr(0, pos));
+        bool hasGlyph = d.text.find_first_of("XYZ") != std::string::npos;
+        if (drawn) CHECK(hasGlyph); // once something is drawn, never blank again
+        if (hasGlyph) drawn = true;
+    }
+    CHECK(drawn);
+}
+
 int main() {
     testPalette();
+    testFrameBoundary();
+    testAnimationNeverBlank();
     testScreenBasics();
     testScreenAbsolutePos();
     testScreenCursorMoves();

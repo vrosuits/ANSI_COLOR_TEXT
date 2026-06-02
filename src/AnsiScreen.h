@@ -61,4 +61,12 @@ inline ParsedDocument renderScreen(const std::string& input) {
     return renderScreen(input, ScreenConfig{});
 }
 
+// Advance an animation playback position by at least `minChunk` bytes, then
+// snap forward to the end of the next printable character so a frame never ends
+// inside (or immediately after) an escape sequence. Ending mid-control reveals a
+// half-drawn frame (e.g. the previous glyph erased before the next is drawn);
+// snapping to a glyph boundary keeps playback flicker-free. Returns a position
+// in (pos, input.size()]; returns input.size() if no further glyph exists.
+size_t nextFrameBoundary(const std::string& input, size_t pos, size_t minChunk);
+
 } // namespace ansi
