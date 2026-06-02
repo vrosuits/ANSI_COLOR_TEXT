@@ -14,6 +14,7 @@ add_library(ansicore STATIC
     src/AnsiParser.cpp
     src/AnsiScreen.cpp
     src/AnsiStyler.cpp
+    src/AnsiEncoder.cpp
 )
 target_include_directories(ansicore PUBLIC src)
 
@@ -52,9 +53,10 @@ if(WIN32)
         src/PluginDefinition.cpp
         src/Settings.cpp
         src/SettingsDialog.cpp
+        src/EditorDialog.cpp
         src/SettingsDialog.rc
     )
-    target_link_libraries(NppAnsiColor PRIVATE ansicore)
+    target_link_libraries(NppAnsiColor PRIVATE ansicore comdlg32)
     target_include_directories(NppAnsiColor PRIVATE ${NPP_SDK_INCLUDE} src)
     target_compile_definitions(NppAnsiColor PRIVATE UNICODE _UNICODE)
 

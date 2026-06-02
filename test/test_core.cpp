@@ -18,6 +18,7 @@
 #include "AnsiScreen.h"
 #include "AnsiPalette.h"
 #include "AnsiStyler.h"
+#include "AnsiEncoder.h"
 
 #include <cstdio>
 #include <vector>
@@ -251,10 +252,55 @@ static void testAnimationNeverBlank() {
     CHECK(drawn);
 }
 
+static void testEncodeSgr() {
+    // Default attr -> no sequence.
+    CHECK(encodeSgr(Attr{}) == "");
+
+    // 16-color foreground red (index 1) -> code 31.
+    Attr red; red.fore = palette16(1);
+    CHECK(encodeSgr(red) == "\x1b[31m");
+
+    // Bright bg (index 12) + bold.
+    Attr a; a.flags = AF_Bold; a.back = palette16(12);
+    CHECK(encodeSgr(a) == "\x1b[1;104m");
+
+    // 256-color picks the 5;n form.
+    Attr c256; c256.fore = palette256(202);
+    CHECK(encodeSgr(c256) == "\x1b[38;5;202m");
+
+    // True color falls back to 2;r;g;b.
+    Attr tc; tc.back = Color(10, 20, 30);
+    CHECK(encodeSgr(tc) == "\x1b[48;2;10;20;30m");
+
+    // wrapSgr brackets the text with the sequence and a reset.
+    CHECK(wrapSgr("hi", red) == "\x1b[31mhi\x1b[0m");
+    CHECK(wrapSgr("plain", Attr{}) == "plain");
+}
+
+static void testEncodeRoundTrip() {
+    // Encoding a parsed document and re-parsing reproduces text and attributes.
+    std::string original = "\x1b[1;31mError\x1b[0m: \x1b[38;5;46mok\x1b[0m plain";
+    ParsedDocument a = parse(original);
+    std::string encoded = encode(a);
+    ParsedDocument b = parse(encoded);
+
+    CHECK(a.text == b.text);
+    // Compare effective per-character attributes via flattened spans.
+    auto flatten = [](const ParsedDocument& d) {
+        std::vector<Attr> per(d.text.size());
+        for (const Span& s : d.spans)
+            for (size_t i = 0; i < s.length; ++i) per[s.start + i] = s.attr;
+        return per;
+    };
+    CHECK(flatten(a) == flatten(b));
+}
+
 int main() {
     testPalette();
     testFrameBoundary();
     testAnimationNeverBlank();
+    testEncodeSgr();
+    testEncodeRoundTrip();
     testScreenBasics();
     testScreenAbsolutePos();
     testScreenCursorMoves();

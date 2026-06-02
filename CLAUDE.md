@@ -23,13 +23,14 @@ Code is split so the interesting logic is host-testable without Notepad++:
 - `src/AnsiScreen.*` — `renderScreen(input, ScreenConfig)`: **the renderer the plugin uses.** Replays the stream through a virtual 2D character grid with a cursor: absolute positioning (`H`/`f`), all cursor moves (`A/B/C/D/E/F/G/d/a/e`), tab stops (`HT`, `HTS`, `TBC`, `CHT`, `CBT`), scroll regions (`DECSTBM`, `SU`/`SD`, `IND`/`RI`/`NEL`), and erases (`ED`/`EL`/`ECH`), then flattens the grid into a `ParsedDocument`. `ScreenConfig` exposes wrap width, screen height (0 = unbounded, no scrolling), tab width, and erase-uses-background — defaults reproduce standard behavior.
 - `src/AnsiParser.*` — `parse()`: the simpler *linear* renderer (streams text, approximates `ESC[nC` as spaces, drops other CSI). Kept and tested for purely linear streams; the plugin uses `renderScreen` instead.
 - `src/AnsiStyler.*` — `applyToEditor()`: dedups attrs into Scintilla style slots, resolves inverse via fg/bg swap, marks strike via an indicator, reports `blinkRanges`. Talks to an abstract `IEditor` (no SDK dependency).
+- `src/AnsiEncoder.*` — the **inverse of the parser**: `encodeSgr(Attr)` (minimal 16/256/truecolor SGR), `wrapSgr(text, Attr)`, and `encode(ParsedDocument)`. Powers the editor's apply-color and export; round-trip tested against `parse()`.
 - `src/Settings.*` — `PluginSettings` + `.ini` load/save (in the Notepad++ plugin config dir); `toScreenConfig()` maps it to `ScreenConfig`.
-- `src/PluginDefinition.*` — menu commands, `ScintillaEditor` (`IEditor` impl), blink + animation timers.
-- `src/SettingsDialog.*` + `src/resource.h` + `src/SettingsDialog.rc` — the Win32 settings dialog.
+- `src/PluginDefinition.*` — menu commands, `ScintillaEditor` (`IEditor` impl), blink + animation timers, editor commands (`applyAttrToSelection`, import/export via common dialogs).
+- `src/SettingsDialog.*` / `src/EditorDialog.*` + `src/resource.h` + `src/SettingsDialog.rc` — the Win32 settings dialog and the apply-color editor dialog (both dialog templates live in `SettingsDialog.rc`).
 - `src/DllMain.cpp` — the required Notepad++ plugin exports.
-- `test/test_core.cpp` — host self-test (palette, both renderers, styler).
+- `test/test_core.cpp` — host self-test (palette, both renderers, styler, encoder).
 
-Plugin menu commands: Render ANSI Colors, Play as Animation, Stop Animation, Toggle Black/White Background, Pause/Resume Blink, Settings…, About. Animation = re-render successive byte-prefixes on a timer (configurable delay + bytes/frame), so cursor-positioned art animates. Frame cuts use `ansi::nextFrameBoundary()`, which snaps each prefix to the end of a printable char so a frame never ends mid-escape (flicker-free playback).
+Plugin menu commands: Render ANSI Colors, Play as Animation, Stop Animation, Toggle Black/White Background, Pause/Resume Blink, Apply Color to Selection…, Insert Reset Code, Import ANSI File…, Export ANSI File…, Settings…, About (`nbFunc` = 11). Animation = re-render successive byte-prefixes on a timer (configurable delay + bytes/frame), so cursor-positioned art animates. Frame cuts use `ansi::nextFrameBoundary()`, which snaps each prefix to the end of a printable char so a frame never ends mid-escape (flicker-free playback). The **editor** treats the buffer as ANSI *source*: Apply Color wraps the selection with real `ESC[...m`…`ESC[0m` bytes (via `AnsiEncoder` + the native ChooseColor picker); Import opens a file (`NPPM_DOOPEN`); Export writes the raw buffer (`comdlg32` save dialog). Render is the (destructive-to-buffer) preview.
 
 ## Build & test
 

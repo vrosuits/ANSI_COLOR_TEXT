@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// resource.h - control identifiers for the settings dialog.
+// resource.h - control identifiers for the settings and editor dialogs.
 #pragma once
 
 #define IDD_SETTINGS        1001
+#define IDD_EDITOR          1002
 
 #define IDC_MAXWIDTH        1010
 #define IDC_HEIGHT          1011
@@ -27,3 +28,15 @@
 #define IDC_BLINK           1017
 #define IDC_ANIMDELAY       1018
 #define IDC_ANIMCHUNK       1019
+
+// Editor (apply-color) dialog.
+#define IDC_FG_SET          1030
+#define IDC_FG_PICK         1031
+#define IDC_BG_SET          1032
+#define IDC_BG_PICK         1033
+#define IDC_AT_BOLD         1034
+#define IDC_AT_ITALIC       1035
+#define IDC_AT_UNDERLINE    1036
+#define IDC_AT_BLINK        1037
+#define IDC_AT_INVERSE      1038
+#define IDC_AT_STRIKE       1039

@@ -21,6 +21,9 @@ timed **animation playback** for cursor-addressed ANSI animations.
 - **Animation playback:** *Play as Animation* reveals the stream progressively on
   a timer, so cursor-positioned ANSI animations play back. Frame cuts snap to
   glyph boundaries, so playback is flicker-free.
+- **Editor:** colorize text by selecting it and choosing a foreground/background
+  (native color picker) and attributes — the selection is wrapped with real ANSI
+  escape codes. Import and export `.ans` files, and insert reset codes.
 - **Configurable:** a settings dialog (persisted to an `.ini`) exposes wrap
   width, screen height, tab width, erase behavior, scroll-region toggle, default
   background, blink interval, and animation speed.
@@ -31,13 +34,27 @@ Under **Plugins → ANSI Color Text**:
 
 | Command | Action |
 | --- | --- |
-| Render ANSI Colors | Parse and colorize the current document. |
+| Render ANSI Colors | Parse and colorize the current document (preview). |
 | Play as Animation | Play the document as a timed ANSI animation. |
 | Stop Animation | Stop playback and show the final frame. |
 | Toggle Black/White Background | Switch the default background and re-render. |
 | Pause/Resume Blink | Pause or resume blink animation. |
+| Apply Color to Selection… | Wrap the selection with ANSI codes for the chosen color/attributes. |
+| Insert Reset Code | Insert an `ESC[0m` reset at the caret. |
+| Import ANSI File… | Open an ANSI file for viewing/editing. |
+| Export ANSI File… | Write the current buffer to an ANSI file. |
 | Settings… | Open the configuration dialog. |
 | About | Plugin info. |
+
+### Editing workflow
+
+The editor treats the document as **ANSI source** (escape codes are literal text
+you edit). Select a run of text, choose **Apply Color to Selection…**, pick a
+foreground/background and attributes, and the selection is wrapped with
+`ESC[…m … ESC[0m`. **Render ANSI Colors** previews the result with real colors
+(this rewrites the in-editor buffer; the file on disk is untouched until you
+save or **Export**). **Import** opens an existing `.ans`; **Export** writes the
+current source to a file.
 
 ## Installation
 

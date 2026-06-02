@@ -31,3 +31,6 @@ cmake_install.cmake
 # Personal Claude settings (private, not shared)
 CLAUDE.local.md
 .claude/settings.local.json
+
+# Claude conversation exports
+*-local-command-caveat*.txt

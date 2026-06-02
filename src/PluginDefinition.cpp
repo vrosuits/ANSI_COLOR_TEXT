@@ -15,10 +15,12 @@
 #include "PluginDefinition.h"
 #include "AnsiScreen.h"
 #include "AnsiStyler.h"
+#include "AnsiEncoder.h"
 
 #include "Scintilla.h"
 #include "Notepad_plus_msgs.h"
 
+#include <commdlg.h>
 #include <string>
 #include <vector>
 
@@ -72,13 +74,17 @@ bool setCommand(size_t index, const TCHAR* cmdName, PFUNCPLUGINCMD pFunc, Shortc
 }
 
 void commandMenuInit() {
-    setCommand(0, TEXT("Render ANSI Colors"),            renderAnsi,       nullptr, false);
-    setCommand(1, TEXT("Play as Animation"),             playAnimation,    nullptr, false);
-    setCommand(2, TEXT("Stop Animation"),                stopAnimationCmd, nullptr, false);
-    setCommand(3, TEXT("Toggle Black/White Background"), toggleBackground, nullptr, false);
-    setCommand(4, TEXT("Pause/Resume Blink"),            editFlash,        nullptr, false);
-    setCommand(5, TEXT("Settings..."),                   showSettings,     nullptr, false);
-    setCommand(6, TEXT("About"),                         showAbout,        nullptr, false);
+    setCommand(0,  TEXT("Render ANSI Colors"),            renderAnsi,       nullptr, false);
+    setCommand(1,  TEXT("Play as Animation"),             playAnimation,    nullptr, false);
+    setCommand(2,  TEXT("Stop Animation"),                stopAnimationCmd, nullptr, false);
+    setCommand(3,  TEXT("Toggle Black/White Background"), toggleBackground, nullptr, false);
+    setCommand(4,  TEXT("Pause/Resume Blink"),            editFlash,        nullptr, false);
+    setCommand(5,  TEXT("Apply Color to Selection..."),   applyColor,       nullptr, false);
+    setCommand(6,  TEXT("Insert Reset Code"),             insertReset,      nullptr, false);
+    setCommand(7,  TEXT("Import ANSI File..."),           importAnsi,       nullptr, false);
+    setCommand(8,  TEXT("Export ANSI File..."),           exportAnsi,       nullptr, false);
+    setCommand(9,  TEXT("Settings..."),                   showSettings,     nullptr, false);
+    setCommand(10, TEXT("About"),                         showAbout,        nullptr, false);
 }
 
 void commandMenuCleanUp() {}
@@ -328,9 +334,85 @@ void editFlash() {
 void showAbout() {
     ::MessageBox(nppData._nppHandle,
         TEXT("ANSI Color Text\r\n\r\n")
-        TEXT("Renders ANSI/SGR-colored text in Notepad++ (16 / 256 / true color, ")
-        TEXT("bold, italic, underline, strikethrough, inverse, blink).\r\n\r\n")
-        TEXT("Virtual-screen renderer with cursor positioning, scroll regions, ")
-        TEXT("tab stops, and timed animation playback. Configure under 'Settings...'."),
+        TEXT("Renders and edits ANSI/SGR-colored text in Notepad++ (16 / 256 / true ")
+        TEXT("color, bold, italic, underline, strikethrough, inverse, blink).\r\n\r\n")
+        TEXT("Virtual-screen renderer with cursor positioning, scroll regions, tab ")
+        TEXT("stops, and timed animation playback. Editor commands colorize the ")
+        TEXT("selection and import/export ANSI files. Configure under 'Settings...'."),
         NPP_PLUGIN_NAME, MB_OK | MB_ICONINFORMATION);
+}
+
+// ---------------------------------------------------------------------------
+// Editor commands
+// ---------------------------------------------------------------------------
+
+void applyAttrToSelection(const ansi::Attr& a) {
+    HWND h = currentScintilla();
+    if (!h) return;
+
+    Sci_Position selS = static_cast<Sci_Position>(sci(h, SCI_GETSELECTIONSTART));
+    Sci_Position selE = static_cast<Sci_Position>(sci(h, SCI_GETSELECTIONEND));
+    if (selS == selE) {
+        ::MessageBox(nppData._nppHandle,
+            TEXT("Select some text first, then apply a color."),
+            NPP_PLUGIN_NAME, MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    size_t len = static_cast<size_t>(selE - selS);
+    std::string sel(len + 1, '\0');     // +1 for the NUL the call appends
+    sci(h, SCI_GETSELTEXT, 0, reinterpret_cast<LPARAM>(&sel[0]));
+    sel.resize(len);
+
+    std::string wrapped = ansi::wrapSgr(sel, a);
+    sci(h, SCI_REPLACESEL, 0, reinterpret_cast<LPARAM>(wrapped.c_str()));
+}
+
+void insertReset() {
+    HWND h = currentScintilla();
+    if (!h) return;
+    sci(h, SCI_REPLACESEL, 0, reinterpret_cast<LPARAM>("\x1b[0m"));
+}
+
+void importAnsi() {
+    TCHAR path[MAX_PATH] = {0};
+    OPENFILENAME ofn = {0};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner   = nppData._nppHandle;
+    ofn.lpstrFilter = TEXT("ANSI files (*.ans;*.txt)\0*.ans;*.txt\0All files (*.*)\0*.*\0");
+    ofn.lpstrFile   = path;
+    ofn.nMaxFile    = MAX_PATH;
+    ofn.Flags       = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+    if (::GetOpenFileName(&ofn)) {
+        // Open the file as a normal document; the user can then Render or edit it.
+        ::SendMessage(nppData._nppHandle, NPPM_DOOPEN, 0, reinterpret_cast<LPARAM>(path));
+    }
+}
+
+void exportAnsi() {
+    HWND h = currentScintilla();
+    if (!h) return;
+    std::string data = readDocument(h);
+
+    TCHAR path[MAX_PATH] = {0};
+    OPENFILENAME ofn = {0};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner   = nppData._nppHandle;
+    ofn.lpstrFilter = TEXT("ANSI files (*.ans)\0*.ans\0All files (*.*)\0*.*\0");
+    ofn.lpstrFile   = path;
+    ofn.nMaxFile    = MAX_PATH;
+    ofn.lpstrDefExt = TEXT("ans");
+    ofn.Flags       = OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY;
+    if (!::GetSaveFileName(&ofn)) return;
+
+    HANDLE hf = ::CreateFile(path, GENERIC_WRITE, 0, nullptr,
+                             CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hf == INVALID_HANDLE_VALUE) {
+        ::MessageBox(nppData._nppHandle, TEXT("Could not open the file for writing."),
+                     NPP_PLUGIN_NAME, MB_OK | MB_ICONERROR);
+        return;
+    }
+    DWORD written = 0;
+    ::WriteFile(hf, data.data(), static_cast<DWORD>(data.size()), &written, nullptr);
+    ::CloseHandle(hf);
 }
