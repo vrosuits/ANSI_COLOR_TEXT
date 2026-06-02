@@ -47,6 +47,12 @@ cmake --build build      # -> build\ANSI_COLOR_TEXT.dll (x64)
 ```
 SDK-version quirks already handled: the menu-callback type is `PFUNCPLUGINCMD` (not `PFUNCPLUGIN`), and modern Scintilla has no `SCI_SETLEXER` — use `SCI_SETILEXER, 0, 0` to disable lexing.
 
+CI (`.github/workflows/build.yml`, on push to `main` + PRs): `core-linux` builds and tests the core on Linux; `plugin-windows` builds the DLL with MSVC via the **VS 2022 generator** (which works on the runner even though it fails on this machine), runs the tests, and uploads `ANSI_COLOR_TEXT.dll` as an artifact.
+
+## Conventions
+
+- Licensed under **Apache-2.0** (© 2026 Antony J Ingram, UNIVERSAL I.T SYSTEMS). Every source file begins with the Apache license header — copy it onto any new `.cpp`/`.h`/`.rc`.
+
 ## Gotchas
 
 - Scintilla styles have **no strikethrough / blink** attribute. Strike is drawn with an indicator (`INDIC_STRIKE`). Blink is simulated: the styler allocates a paired hidden style (fg = bg) per blink run and reports `blinkRanges`; the plugin runs a `SetTimer` loop (`blinkTimerProc`) that toggles ranges between the visible and hidden styles. "Toggle Blink" pauses/resumes it.
