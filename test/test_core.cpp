@@ -163,6 +163,48 @@ static void testScreenKeepsAttributes() {
     CHECK(d.spans.back().attr.fore == Color(205, 0, 0));
 }
 
+static void testTabs() {
+    // Default tab stops every 8 columns: 'A' then tab -> column 8.
+    ParsedDocument d = renderScreen("A\tB");
+    CHECK(d.text == "A       B"); // A + 7 spaces + B (B at col 8)
+    // Custom tab width.
+    ScreenConfig cfg; cfg.tabWidth = 4;
+    CHECK(renderScreen("A\tB", cfg).text == "A   B"); // B at col 4
+}
+
+static void testEraseUsesBackground() {
+    // With a background set, ECH paints the cells (they become visible spaces
+    // carrying that background) rather than vanishing.
+    ScreenConfig cfg; // eraseUsesBackground defaults true
+    ParsedDocument d = renderScreen("\x1b[41mAB\x1b[3D\x1b[2X", cfg);
+    // "AB" written red-bg, cursor back 3 (to col 0... clamped), erase 2 chars.
+    bool anyRedBack = false;
+    for (const Span& s : d.spans)
+        if (s.attr.back == Color(205, 0, 0)) anyRedBack = true;
+    CHECK(anyRedBack);
+
+    // With the option off, erased cells are transparent (default span).
+    ScreenConfig off; off.eraseUsesBackground = false;
+    ParsedDocument d2 = renderScreen("\x1b[41mXY\x1b[2D\x1b[2X", off);
+    CHECK(d2.text.find_first_not_of(" \n") == std::string::npos); // all blank
+}
+
+static void testScrollRegion() {
+    // Bounded 3-row screen; write 4 lines so the top scrolls off.
+    ScreenConfig cfg; cfg.height = 3;
+    ParsedDocument d = renderScreen("L1\nL2\nL3\nL4", cfg);
+    // After the 4th line feed at the bottom, L1 has scrolled away.
+    CHECK(d.text == "L2\nL3\nL4");
+}
+
+static void testReverseIndex() {
+    // RI (ESC M) moves up a line without changing column; writing then lands
+    // on the previous row.
+    ParsedDocument d = renderScreen("A\nB\x1bM C");
+    // Row0: "A", then "B" on row1 col0->col1, RI up to row0 col1, space+C.
+    CHECK(d.text == "A C\nB");
+}
+
 int main() {
     testPalette();
     testScreenBasics();
@@ -171,6 +213,10 @@ int main() {
     testScreenEraseLine();
     testScreenEraseDisplay();
     testScreenKeepsAttributes();
+    testTabs();
+    testEraseUsesBackground();
+    testScrollRegion();
+    testReverseIndex();
     testParseBasic();
     testParseExtendedColor();
     testParseAttributes();

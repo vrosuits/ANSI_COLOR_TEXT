@@ -46,12 +46,16 @@ if(WIN32)
         set(NPP_SDK_INCLUDE ${npp_template_SOURCE_DIR}/src)
     endif()
 
+    enable_language(RC)
     add_library(NppAnsiColor SHARED
         src/DllMain.cpp
         src/PluginDefinition.cpp
+        src/Settings.cpp
+        src/SettingsDialog.cpp
+        src/SettingsDialog.rc
     )
     target_link_libraries(NppAnsiColor PRIVATE ansicore)
-    target_include_directories(NppAnsiColor PRIVATE ${NPP_SDK_INCLUDE})
+    target_include_directories(NppAnsiColor PRIVATE ${NPP_SDK_INCLUDE} src)
     target_compile_definitions(NppAnsiColor PRIVATE UNICODE _UNICODE)
 
     # Notepad++ loads "<name>.dll" from its plugins/<name>/ folder.

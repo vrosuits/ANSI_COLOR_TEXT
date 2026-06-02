@@ -8,40 +8,45 @@
 #include <string>
 #include <vector>
 
-NppData  nppData;
-FuncItem funcItem[nbFunc];
+NppData       nppData;
+FuncItem      funcItem[nbFunc];
+PluginSettings g_settings;
+HINSTANCE     g_hModule = nullptr;
 
-// Background mode persists across renders. Default to a black background, which
-// is what most ANSI art is authored for.
-bool g_blackBackground = true;
+static bool g_settingsLoaded = false;
 
 // Indicator number used to draw strikethrough (Scintilla styles lack a strike
 // attribute). Indicators 0-7 are reserved by Notepad++; 8+ are free for plugins.
 static const int kStrikeIndicator = 9;
 
-// Blink animation state. Scintilla cannot blink, so a Windows timer toggles
-// blink-flagged ranges between their visible and hidden styles.
-static const UINT_PTR kBlinkTimerId   = 0xA751;
-static const UINT     kBlinkIntervalMs = 500;
+// Timers: blink toggling and animation playback.
+static const UINT_PTR kBlinkTimerId = 0xA751;
+static const UINT_PTR kAnimTimerId  = 0xA752;
+
 static std::vector<ansi::BlinkRange> g_blinkRanges;
-static HWND g_blinkSci      = nullptr; // the view currently being animated
-static bool g_blinkRunning  = false;
-static bool g_blinkVisible  = true;
+static HWND g_blinkSci     = nullptr;
+static bool g_blinkRunning = false;
+static bool g_blinkVisible = true;
+
+static std::string g_animBytes;       // full source being played back
+static size_t      g_animPos    = 0;  // bytes revealed so far
+static HWND        g_animSci    = nullptr;
+static bool        g_animRunning = false;
 
 // ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-void pluginInit(HANDLE /*hModule*/) {}
-
-void pluginCleanUp() {
-    if (g_blinkRunning) {
-        ::KillTimer(nppData._nppHandle, kBlinkTimerId);
-        g_blinkRunning = false;
-    }
+void pluginInit(HANDLE hModule) {
+    g_hModule = static_cast<HINSTANCE>(hModule);
 }
 
-bool setCommand(size_t index, const TCHAR* cmdName, PFUNCPLUGIN pFunc, ShortcutKey* sk, bool checkOnInit) {
+void pluginCleanUp() {
+    if (g_blinkRunning) { ::KillTimer(nppData._nppHandle, kBlinkTimerId); g_blinkRunning = false; }
+    if (g_animRunning)  { ::KillTimer(nppData._nppHandle, kAnimTimerId);  g_animRunning  = false; }
+}
+
+bool setCommand(size_t index, const TCHAR* cmdName, PFUNCPLUGINCMD pFunc, ShortcutKey* sk, bool checkOnInit) {
     if (index >= nbFunc) return false;
     if (!pFunc) return false;
 
@@ -53,10 +58,13 @@ bool setCommand(size_t index, const TCHAR* cmdName, PFUNCPLUGIN pFunc, ShortcutK
 }
 
 void commandMenuInit() {
-    setCommand(0, TEXT("Render ANSI Colors"),        renderAnsi,       nullptr, false);
-    setCommand(1, TEXT("Toggle Black/White Background"), toggleBackground, nullptr, false);
-    setCommand(2, TEXT("Toggle Blink (experimental)"), editFlash,        nullptr, false);
-    setCommand(3, TEXT("About"),                     showAbout,        nullptr, false);
+    setCommand(0, TEXT("Render ANSI Colors"),            renderAnsi,       nullptr, false);
+    setCommand(1, TEXT("Play as Animation"),             playAnimation,    nullptr, false);
+    setCommand(2, TEXT("Stop Animation"),                stopAnimationCmd, nullptr, false);
+    setCommand(3, TEXT("Toggle Black/White Background"), toggleBackground, nullptr, false);
+    setCommand(4, TEXT("Pause/Resume Blink"),            editFlash,        nullptr, false);
+    setCommand(5, TEXT("Settings..."),                   showSettings,     nullptr, false);
+    setCommand(6, TEXT("About"),                         showAbout,        nullptr, false);
 }
 
 void commandMenuCleanUp() {}
@@ -67,7 +75,6 @@ void commandMenuCleanUp() {}
 
 namespace {
 
-// Handle of the Scintilla view that currently has focus.
 HWND currentScintilla() {
     int which = -1;
     ::SendMessage(nppData._nppHandle, NPPM_GETCURRENTSCINTILLA, 0, reinterpret_cast<LPARAM>(&which));
@@ -79,12 +86,8 @@ LRESULT sci(HWND h, UINT msg, WPARAM w = 0, LPARAM l = 0) {
     return ::SendMessage(h, msg, w, l);
 }
 
-// Pack an ansi::Color into Scintilla's 0x00BBGGRR COLORREF.
-COLORREF toColorRef(const ansi::Color& c) {
-    return RGB(c.r, c.g, c.b);
-}
+COLORREF toColorRef(const ansi::Color& c) { return RGB(c.r, c.g, c.b); }
 
-// Read the entire current document as bytes.
 std::string readDocument(HWND h) {
     LRESULT len = sci(h, SCI_GETLENGTH);
     std::string buf(static_cast<size_t>(len), '\0');
@@ -100,21 +103,14 @@ public:
         : h_(h), defFore_(defFore), defBack_(defBack) {}
 
     void setText(const std::string& text) override {
-        // Treat the buffer as raw bytes (UTF-8). CP437 ANSI art needs a matching
-        // font (e.g. a "Terminal"/IBM VGA font) to show box-drawing glyphs.
         sci(h_, SCI_SETCODEPAGE, SC_CP_UTF8);
-        // Disable the syntax lexer so it does not overwrite our styling.
-        sci(h_, SCI_SETLEXER, SCLEX_NULL);
-
-        // Establish the default style (background + default foreground) and
-        // propagate it to all style slots before we redefine the ones we use.
+        // Modern Scintilla: SCI_SETLEXER is gone. Setting a null ILexer leaves
+        // the document in container/no-lexer mode so our styling is not undone.
+        sci(h_, SCI_SETILEXER, 0, 0);
         sci(h_, SCI_STYLESETFORE, STYLE_DEFAULT, toColorRef(defFore_));
         sci(h_, SCI_STYLESETBACK, STYLE_DEFAULT, toColorRef(defBack_));
         sci(h_, SCI_STYLECLEARALL);
-
-        // Configure the strikethrough indicator.
         sci(h_, SCI_INDICSETSTYLE, kStrikeIndicator, INDIC_STRIKE);
-
         sci(h_, SCI_SETREADONLY, 0);
         sci(h_, SCI_CLEARALL);
         sci(h_, SCI_APPENDTEXT, static_cast<WPARAM>(text.size()),
@@ -122,11 +118,8 @@ public:
     }
 
     void defineStyle(int style, const ansi::Color& fore, const ansi::Color& back, uint32_t flags) override {
-        if (fore.set) sci(h_, SCI_STYLESETFORE, style, toColorRef(fore));
-        else          sci(h_, SCI_STYLESETFORE, style, toColorRef(defFore_));
-        if (back.set) sci(h_, SCI_STYLESETBACK, style, toColorRef(back));
-        else          sci(h_, SCI_STYLESETBACK, style, toColorRef(defBack_));
-
+        sci(h_, SCI_STYLESETFORE, style, toColorRef(fore.set ? fore : defFore_));
+        sci(h_, SCI_STYLESETBACK, style, toColorRef(back.set ? back : defBack_));
         sci(h_, SCI_STYLESETBOLD,      style, (flags & ansi::AF_Bold)      ? 1 : 0);
         sci(h_, SCI_STYLESETITALIC,    style, (flags & ansi::AF_Italic)    ? 1 : 0);
         sci(h_, SCI_STYLESETUNDERLINE, style, (flags & ansi::AF_Underline) ? 1 : 0);
@@ -153,7 +146,28 @@ void defaultsForBackground(bool black, ansi::Color& fore, ansi::Color& back) {
     else       { back = ansi::Color{255, 255, 255}; fore = ansi::Color{0, 0, 0}; }
 }
 
-// Re-style all blink ranges for the current phase (visible vs hidden).
+std::wstring pluginConfigDir() {
+    TCHAR dir[MAX_PATH];
+    dir[0] = 0;
+    ::SendMessage(nppData._nppHandle, NPPM_GETPLUGINSCONFIGDIR, MAX_PATH, reinterpret_cast<LPARAM>(dir));
+    return dir;
+}
+
+// Render `raw` to view `h` using current settings; returns blink ranges etc.
+ansi::StyleResult renderBytesToView(HWND h, const std::string& raw) {
+    ansi::Color defFore, defBack;
+    defaultsForBackground(g_settings.blackBackground, defFore, defBack);
+
+    ansi::StylerConfig cfg;
+    cfg.defaultFore = defFore;
+    cfg.defaultBack = defBack;
+
+    ansi::ParsedDocument doc = ansi::renderScreen(raw, g_settings.toScreenConfig());
+    ScintillaEditor editor(h, defFore, defBack);
+    return ansi::applyToEditor(doc, editor, cfg);
+}
+
+// --- blink ---------------------------------------------------------------
 void applyBlinkPhase(bool visible) {
     if (!g_blinkSci) return;
     for (const ansi::BlinkRange& br : g_blinkRanges) {
@@ -169,11 +183,7 @@ VOID CALLBACK blinkTimerProc(HWND, UINT, UINT_PTR, DWORD) {
 }
 
 void stopBlink() {
-    if (g_blinkRunning) {
-        ::KillTimer(nppData._nppHandle, kBlinkTimerId);
-        g_blinkRunning = false;
-    }
-    // Leave blink text in its visible state.
+    if (g_blinkRunning) { ::KillTimer(nppData._nppHandle, kBlinkTimerId); g_blinkRunning = false; }
     g_blinkVisible = true;
     applyBlinkPhase(true);
 }
@@ -181,40 +191,63 @@ void stopBlink() {
 void startBlink() {
     if (g_blinkRunning || g_blinkRanges.empty() || !g_blinkSci) return;
     g_blinkVisible = true;
-    g_blinkRunning = ::SetTimer(nppData._nppHandle, kBlinkTimerId, kBlinkIntervalMs, blinkTimerProc) != 0;
+    UINT interval = static_cast<UINT>(g_settings.blinkIntervalMs);
+    g_blinkRunning = ::SetTimer(nppData._nppHandle, kBlinkTimerId, interval, blinkTimerProc) != 0;
+}
+
+// --- animation -----------------------------------------------------------
+void stopAnimation() {
+    if (g_animRunning) { ::KillTimer(nppData._nppHandle, kAnimTimerId); g_animRunning = false; }
+}
+
+VOID CALLBACK animTimerProc(HWND, UINT, UINT_PTR, DWORD) {
+    if (!g_animSci) { stopAnimation(); return; }
+
+    size_t chunk = static_cast<size_t>(g_settings.animChunkBytes);
+    g_animPos = (g_animPos + chunk >= g_animBytes.size()) ? g_animBytes.size() : g_animPos + chunk;
+
+    ansi::StyleResult res = renderBytesToView(g_animSci, g_animBytes.substr(0, g_animPos));
+
+    if (g_animPos >= g_animBytes.size()) {
+        // Final frame: stop and hand any blink ranges to the blink animator.
+        stopAnimation();
+        g_blinkRanges = std::move(res.blinkRanges);
+        g_blinkSci    = g_animSci;
+        startBlink();
+    }
 }
 
 } // namespace
+
+void ensureSettings() {
+    if (g_settingsLoaded) return;
+    loadSettings(pluginConfigDir().c_str(), g_settings);
+    g_settingsLoaded = true;
+}
+
+void persistSettings() {
+    saveSettings(pluginConfigDir().c_str(), g_settings);
+}
+
+void reRenderCurrent() { renderAnsi(); }
 
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
 
 void renderAnsi() {
+    ensureSettings();
     HWND h = currentScintilla();
     if (!h) return;
 
-    // Drop any animation from a previous render before rewriting the buffer.
+    stopAnimation();
     stopBlink();
     g_blinkRanges.clear();
     g_blinkSci = nullptr;
 
     std::string raw = readDocument(h);
-    // Render through the virtual screen so absolute positioning and erases in
-    // real ANSI art are honored (80-column wrap, the de-facto art width).
-    ansi::ParsedDocument doc = ansi::renderScreen(raw, 80);
+    ansi::StyleResult res = renderBytesToView(h, raw);
 
-    ansi::Color defFore, defBack;
-    defaultsForBackground(g_blackBackground, defFore, defBack);
-
-    ansi::StylerConfig cfg;
-    cfg.defaultFore = defFore;
-    cfg.defaultBack = defBack;
-
-    ScintillaEditor editor(h, defFore, defBack);
-    ansi::StyleResult res = ansi::applyToEditor(doc, editor, cfg);
-
-    // Animate any blink ranges this document produced.
     g_blinkRanges = std::move(res.blinkRanges);
     g_blinkSci    = h;
     startBlink();
@@ -227,9 +260,42 @@ void renderAnsi() {
     }
 }
 
+void playAnimation() {
+    ensureSettings();
+    HWND h = currentScintilla();
+    if (!h) return;
+
+    stopAnimation();
+    stopBlink();
+    g_blinkRanges.clear();
+    g_blinkSci = nullptr;
+
+    g_animBytes = readDocument(h);
+    g_animPos   = 0;
+    g_animSci   = h;
+    if (g_animBytes.empty()) return;
+
+    UINT delay = static_cast<UINT>(g_settings.animDelayMs);
+    g_animRunning = ::SetTimer(nppData._nppHandle, kAnimTimerId, delay, animTimerProc) != 0;
+}
+
+void stopAnimationCmd() {
+    if (!g_animRunning) return;
+    stopAnimation();
+    // Reveal the whole document immediately on the final frame.
+    if (g_animSci && !g_animBytes.empty()) {
+        ansi::StyleResult res = renderBytesToView(g_animSci, g_animBytes);
+        g_blinkRanges = std::move(res.blinkRanges);
+        g_blinkSci    = g_animSci;
+        startBlink();
+    }
+}
+
 void toggleBackground() {
-    g_blackBackground = !g_blackBackground;
-    renderAnsi(); // re-render with the new default background
+    ensureSettings();
+    g_settings.blackBackground = !g_settings.blackBackground;
+    persistSettings();
+    renderAnsi();
 }
 
 void editFlash() {
@@ -240,7 +306,6 @@ void editFlash() {
             NPP_PLUGIN_NAME, MB_OK | MB_ICONINFORMATION);
         return;
     }
-    // Pause/resume the blink animation.
     if (g_blinkRunning) stopBlink();
     else                startBlink();
 }
@@ -249,7 +314,8 @@ void showAbout() {
     ::MessageBox(nppData._nppHandle,
         TEXT("ANSI Color Text\r\n\r\n")
         TEXT("Renders ANSI/SGR-colored text in Notepad++ (16 / 256 / true color, ")
-        TEXT("bold, italic, underline, strikethrough, inverse).\r\n\r\n")
-        TEXT("Use 'Render ANSI Colors' on a file containing ANSI escape sequences."),
+        TEXT("bold, italic, underline, strikethrough, inverse, blink).\r\n\r\n")
+        TEXT("Virtual-screen renderer with cursor positioning, scroll regions, ")
+        TEXT("tab stops, and timed animation playback. Configure under 'Settings...'."),
         NPP_PLUGIN_NAME, MB_OK | MB_ICONINFORMATION);
 }

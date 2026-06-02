@@ -1,0 +1,37 @@
+#include <windows.h>
+#include "resource.h"
+
+IDD_SETTINGS DIALOGEX 0, 0, 240, 210
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "ANSI Color Text - Settings"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Rendering", -1, 7, 5, 226, 78
+
+    LTEXT           "Wrap column (0 = no wrap):", -1, 16, 20, 130, 9
+    EDITTEXT        IDC_MAXWIDTH, 160, 18, 60, 12, ES_AUTOHSCROLL | ES_NUMBER
+
+    LTEXT           "Screen height (0 = unbounded):", -1, 16, 36, 130, 9
+    EDITTEXT        IDC_HEIGHT, 160, 34, 60, 12, ES_AUTOHSCROLL | ES_NUMBER
+
+    LTEXT           "Tab width (columns):", -1, 16, 52, 130, 9
+    EDITTEXT        IDC_TABWIDTH, 160, 50, 60, 12, ES_AUTOHSCROLL | ES_NUMBER
+
+    AUTOCHECKBOX    "Erase fills with current background", IDC_ERASEBG, 16, 66, 200, 10
+    AUTOCHECKBOX    "Enable scroll region (DECSTBM)", IDC_SCROLLRGN, 16, 76, 200, 10
+
+    GROUPBOX        "Default background", -1, 7, 90, 226, 26
+    AUTORADIOBUTTON "Black", IDC_BG_BLACK, 16, 101, 50, 10, WS_GROUP
+    AUTORADIOBUTTON "White", IDC_BG_WHITE, 76, 101, 50, 10
+
+    GROUPBOX        "Animation && blink", -1, 7, 122, 226, 60
+    LTEXT           "Blink interval (ms):", -1, 16, 137, 130, 9
+    EDITTEXT        IDC_BLINK, 160, 135, 60, 12, ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "Animation frame delay (ms):", -1, 16, 153, 130, 9
+    EDITTEXT        IDC_ANIMDELAY, 160, 151, 60, 12, ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "Animation bytes per frame:", -1, 16, 169, 130, 9
+    EDITTEXT        IDC_ANIMCHUNK, 160, 167, 60, 12, ES_AUTOHSCROLL | ES_NUMBER
+
+    DEFPUSHBUTTON   "OK", IDOK, 122, 189, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 183, 189, 50, 14
+END

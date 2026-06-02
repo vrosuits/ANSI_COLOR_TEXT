@@ -20,23 +20,32 @@ Code is split so the interesting logic is host-testable without Notepad++:
 - `src/AnsiColor.h` — shared types (`Color`, `Attr` flags, `Span`, `ParsedDocument`). No Win32/Scintilla.
 - `src/AnsiPalette.*` — 16 / 256 / true-color index → RGB.
 - `src/AnsiSgr.*` — `sgrParams()` + `applySgr()`: the single shared implementation of SGR colour/attribute parsing, used by both renderers below.
-- `src/AnsiScreen.*` — `renderScreen()`: **the renderer the plugin uses.** Replays the stream through a virtual 2D character grid with a cursor, honoring absolute positioning (`H`/`f`), cursor moves (`A/B/C/D/E/F/G/d`), save/restore (`s/u`), and erases (`J/K`), then flattens the grid into a `ParsedDocument`. Default 80-column wrap.
-- `src/AnsiParser.*` — `parse()`: the simpler *linear* renderer (streams text, approximates `ESC[nC` as spaces, drops other CSI). Kept and tested as an alternative for purely linear streams; the plugin no longer calls it.
-- `src/AnsiStyler.*` — `applyToEditor()`: dedups attrs into Scintilla style slots, resolves inverse via fg/bg swap, marks strike via an indicator. Talks to an abstract `IEditor` (no SDK dependency).
-- `src/PluginDefinition.*` — menu commands + `ScintillaEditor` (the `IEditor` impl that sends `SCI_*` messages).
+- `src/AnsiScreen.*` — `renderScreen(input, ScreenConfig)`: **the renderer the plugin uses.** Replays the stream through a virtual 2D character grid with a cursor: absolute positioning (`H`/`f`), all cursor moves (`A/B/C/D/E/F/G/d/a/e`), tab stops (`HT`, `HTS`, `TBC`, `CHT`, `CBT`), scroll regions (`DECSTBM`, `SU`/`SD`, `IND`/`RI`/`NEL`), and erases (`ED`/`EL`/`ECH`), then flattens the grid into a `ParsedDocument`. `ScreenConfig` exposes wrap width, screen height (0 = unbounded, no scrolling), tab width, and erase-uses-background — defaults reproduce standard behavior.
+- `src/AnsiParser.*` — `parse()`: the simpler *linear* renderer (streams text, approximates `ESC[nC` as spaces, drops other CSI). Kept and tested for purely linear streams; the plugin uses `renderScreen` instead.
+- `src/AnsiStyler.*` — `applyToEditor()`: dedups attrs into Scintilla style slots, resolves inverse via fg/bg swap, marks strike via an indicator, reports `blinkRanges`. Talks to an abstract `IEditor` (no SDK dependency).
+- `src/Settings.*` — `PluginSettings` + `.ini` load/save (in the Notepad++ plugin config dir); `toScreenConfig()` maps it to `ScreenConfig`.
+- `src/PluginDefinition.*` — menu commands, `ScintillaEditor` (`IEditor` impl), blink + animation timers.
+- `src/SettingsDialog.*` + `src/resource.h` + `src/SettingsDialog.rc` — the Win32 settings dialog.
 - `src/DllMain.cpp` — the required Notepad++ plugin exports.
-- `test/test_core.cpp` — host self-test for parser/palette/styler.
+- `test/test_core.cpp` — host self-test (palette, both renderers, styler).
+
+Plugin menu commands: Render ANSI Colors, Play as Animation, Stop Animation, Toggle Black/White Background, Pause/Resume Blink, Settings…, About. Animation = re-render successive byte-prefixes on a timer (configurable delay + bytes/frame), so cursor-positioned art animates.
 
 ## Build & test
 
+Core + host self-test (any C++17 compiler):
 ```
-cmake -B build
-cmake --build build
-ctest --test-dir build          # runs the core self-test
+cmake -B build && cmake --build build && ctest --test-dir build
 ```
+Quick test compile: `clang++ -std=c++17 -Isrc src/AnsiPalette.cpp src/AnsiSgr.cpp src/AnsiParser.cpp src/AnsiScreen.cpp src/AnsiStyler.cpp test/test_core.cpp -o t.exe`. (Local **mingw g++ is broken — missing cc1plus; use clang++ or MSVC**.)
 
-- The portable core + tests build with any C++17 compiler. To compile just the test quickly: `clang++ -std=c++17 -Isrc src/Ansi*.cpp test/test_core.cpp -o t.exe` (the local **g++/mingw is broken — missing cc1plus; use clang++ or MSVC**).
-- The **DLL target builds on Windows only** and needs the Notepad++ plugin SDK headers (`PluginInterface.h`, `Scintilla.h`, `Notepad_plus_msgs.h`). CMake fetches them from the plugin template repo automatically, or pass `-DNPP_SDK_INCLUDE=<path>`.
+The **DLL builds on Windows with MSVC** (verified) and needs the Npp SDK headers. CMake fetches the plugin template automatically, or pass `-DNPP_SDK_INCLUDE=<path>`. The VS *generator* can't see the installed BuildTools/Insiders here, so build via vcvars + Ninja:
+```
+call "...\VC\Auxiliary\Build\vcvars64.bat"
+cmake -S . -B build -G Ninja -DNPP_SDK_INCLUDE="%CD%\_deps\plugintemplate\src"
+cmake --build build      # -> build\ANSI_COLOR_TEXT.dll (x64)
+```
+SDK-version quirks already handled: the menu-callback type is `PFUNCPLUGINCMD` (not `PFUNCPLUGIN`), and modern Scintilla has no `SCI_SETLEXER` — use `SCI_SETILEXER, 0, 0` to disable lexing.
 
 ## Gotchas
 
