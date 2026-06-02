@@ -1,0 +1,8 @@
+ANSI Color Text - a Notepad++ plugin for rendering ANSI/SGR-colored text.
+Copyright 2026 Antony J Ingram, UNIVERSAL I.T SYSTEMS
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The Windows build depends on the Notepad++ plugin SDK headers (PluginInterface.h,
+Scintilla.h, Notepad_plus_msgs.h), which are fetched at build time from the
+Notepad++ plugin template and are not redistributed in this repository.
