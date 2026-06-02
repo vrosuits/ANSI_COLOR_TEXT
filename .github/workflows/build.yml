@@ -1,0 +1,41 @@
+# Copyright 2026 Antony J Ingram, UNIVERSAL I.T SYSTEMS. Licensed under Apache-2.0.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Build and unit-test the platform-independent core on Linux (the DLL target
+  # is Windows-only and is skipped here).
+  core-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # Build the Notepad++ plugin DLL with MSVC, run the core tests, and publish
+  # the DLL as a downloadable artifact. CMake fetches the Npp SDK headers.
+  plugin-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Upload plugin DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANSI_COLOR_TEXT-dll-x64
+          path: build/Release/ANSI_COLOR_TEXT.dll
+          if-no-files-found: error
