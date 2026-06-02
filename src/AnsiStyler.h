@@ -39,11 +39,25 @@ struct StylerConfig {
     Color defaultBack{255, 255, 255};   // editor default bg, used for inverse swap
 };
 
-// Result of applying: how many distinct styles were needed and whether the
-// style budget was exhausted (true-color-heavy art can exceed maxStyle).
+// A run that carries the SGR blink attribute. Scintilla cannot blink natively,
+// so the styler allocates two styles per blink appearance: `onStyle` (normal)
+// and `offStyle` (foreground == background, i.e. invisible). The plugin's timer
+// toggles which one is applied to animate the blink. Coordinates are byte
+// offsets into the document text.
+struct BlinkRange {
+    size_t start    = 0;
+    size_t length   = 0;
+    int    onStyle  = 0;
+    int    offStyle = 0;
+};
+
+// Result of applying: how many distinct styles were needed, whether the style
+// budget was exhausted (true-color-heavy art can exceed maxStyle), and the
+// ranges that should blink.
 struct StyleResult {
-    int  stylesUsed = 0;
-    bool budgetExceeded = false;
+    int                     stylesUsed = 0;
+    bool                    budgetExceeded = false;
+    std::vector<BlinkRange> blinkRanges;
 };
 
 // Push `doc` into `editor`: set the clean text, allocate de-duplicated styles,

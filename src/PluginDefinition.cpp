@@ -19,12 +19,27 @@ bool g_blackBackground = true;
 // attribute). Indicators 0-7 are reserved by Notepad++; 8+ are free for plugins.
 static const int kStrikeIndicator = 9;
 
+// Blink animation state. Scintilla cannot blink, so a Windows timer toggles
+// blink-flagged ranges between their visible and hidden styles.
+static const UINT_PTR kBlinkTimerId   = 0xA751;
+static const UINT     kBlinkIntervalMs = 500;
+static std::vector<ansi::BlinkRange> g_blinkRanges;
+static HWND g_blinkSci      = nullptr; // the view currently being animated
+static bool g_blinkRunning  = false;
+static bool g_blinkVisible  = true;
+
 // ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 
 void pluginInit(HANDLE /*hModule*/) {}
-void pluginCleanUp() {}
+
+void pluginCleanUp() {
+    if (g_blinkRunning) {
+        ::KillTimer(nppData._nppHandle, kBlinkTimerId);
+        g_blinkRunning = false;
+    }
+}
 
 bool setCommand(size_t index, const TCHAR* cmdName, PFUNCPLUGIN pFunc, ShortcutKey* sk, bool checkOnInit) {
     if (index >= nbFunc) return false;
@@ -138,6 +153,37 @@ void defaultsForBackground(bool black, ansi::Color& fore, ansi::Color& back) {
     else       { back = ansi::Color{255, 255, 255}; fore = ansi::Color{0, 0, 0}; }
 }
 
+// Re-style all blink ranges for the current phase (visible vs hidden).
+void applyBlinkPhase(bool visible) {
+    if (!g_blinkSci) return;
+    for (const ansi::BlinkRange& br : g_blinkRanges) {
+        int style = visible ? br.onStyle : br.offStyle;
+        sci(g_blinkSci, SCI_STARTSTYLING, static_cast<WPARAM>(br.start));
+        sci(g_blinkSci, SCI_SETSTYLING,   static_cast<WPARAM>(br.length), style);
+    }
+}
+
+VOID CALLBACK blinkTimerProc(HWND, UINT, UINT_PTR, DWORD) {
+    g_blinkVisible = !g_blinkVisible;
+    applyBlinkPhase(g_blinkVisible);
+}
+
+void stopBlink() {
+    if (g_blinkRunning) {
+        ::KillTimer(nppData._nppHandle, kBlinkTimerId);
+        g_blinkRunning = false;
+    }
+    // Leave blink text in its visible state.
+    g_blinkVisible = true;
+    applyBlinkPhase(true);
+}
+
+void startBlink() {
+    if (g_blinkRunning || g_blinkRanges.empty() || !g_blinkSci) return;
+    g_blinkVisible = true;
+    g_blinkRunning = ::SetTimer(nppData._nppHandle, kBlinkTimerId, kBlinkIntervalMs, blinkTimerProc) != 0;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -147,6 +193,11 @@ void defaultsForBackground(bool black, ansi::Color& fore, ansi::Color& back) {
 void renderAnsi() {
     HWND h = currentScintilla();
     if (!h) return;
+
+    // Drop any animation from a previous render before rewriting the buffer.
+    stopBlink();
+    g_blinkRanges.clear();
+    g_blinkSci = nullptr;
 
     std::string raw = readDocument(h);
     ansi::ParsedDocument doc = ansi::parse(raw);
@@ -160,6 +211,11 @@ void renderAnsi() {
 
     ScintillaEditor editor(h, defFore, defBack);
     ansi::StyleResult res = ansi::applyToEditor(doc, editor, cfg);
+
+    // Animate any blink ranges this document produced.
+    g_blinkRanges = std::move(res.blinkRanges);
+    g_blinkSci    = h;
+    startBlink();
 
     if (res.budgetExceeded) {
         ::MessageBox(nppData._nppHandle,
@@ -175,12 +231,16 @@ void toggleBackground() {
 }
 
 void editFlash() {
-    // Scintilla cannot natively blink text. A future version can simulate it
-    // with a timer that toggles the foreground of blink-flagged ranges.
-    ::MessageBox(nppData._nppHandle,
-        TEXT("Blink rendering is not implemented yet. Blink attributes are ")
-        TEXT("parsed and tracked; timer-based simulation is planned."),
-        NPP_PLUGIN_NAME, MB_OK | MB_ICONINFORMATION);
+    if (g_blinkRanges.empty()) {
+        ::MessageBox(nppData._nppHandle,
+            TEXT("No blinking text in the current render. Run 'Render ANSI Colors' ")
+            TEXT("on a file that uses the blink attribute (SGR 5) first."),
+            NPP_PLUGIN_NAME, MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    // Pause/resume the blink animation.
+    if (g_blinkRunning) stopBlink();
+    else                startBlink();
 }
 
 void showAbout() {

@@ -1,0 +1,17 @@
+# Normalize line endings: store text as LF in the repo, check out LF everywhere.
+* text=auto eol=lf
+
+# Source and build files are LF.
+*.cpp   text eol=lf
+*.h     text eol=lf
+*.txt   text eol=lf
+*.md    text eol=lf
+CMakeLists.txt text eol=lf
+
+# Visual Studio project files are conventionally CRLF.
+*.sln     text eol=crlf
+*.vcxproj text eol=crlf
+*.filters text eol=crlf
+
+# ANSI art carries raw control bytes (ESC, CP437 high-bytes); never convert it.
+*.ans binary

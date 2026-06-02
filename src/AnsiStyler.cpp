@@ -48,33 +48,40 @@ StyleResult applyToEditor(const ParsedDocument& doc, IEditor& editor, const Styl
 
     const int capacity = cfg.maxStyle - cfg.baseStyle + 1;
 
+    // Find or allocate a Scintilla style number for a resolved appearance,
+    // defining it on first use. Returns an absolute style number.
+    auto slotFor = [&](const Resolved& r) -> int {
+        for (size_t k = 0; k < table.size(); ++k) {
+            if (table[k] == r) return cfg.baseStyle + static_cast<int>(k);
+        }
+        if (static_cast<int>(table.size()) < capacity) {
+            int slot = static_cast<int>(table.size());
+            table.push_back(r);
+            editor.defineStyle(cfg.baseStyle + slot, r.fore, r.back, r.flags);
+            return cfg.baseStyle + slot;
+        }
+        // Out of style numbers: reuse slot 0 so text still renders, and flag it.
+        result.budgetExceeded = true;
+        return cfg.baseStyle;
+    };
+
     for (const Span& span : doc.spans) {
         if (span.length == 0) continue;
 
         Resolved r = resolve(span.attr, cfg);
-
-        // Find or assign a style slot for this resolved appearance.
-        int slot = -1;
-        for (size_t k = 0; k < table.size(); ++k) {
-            if (table[k] == r) { slot = static_cast<int>(k); break; }
-        }
-        if (slot < 0) {
-            if (static_cast<int>(table.size()) < capacity) {
-                slot = static_cast<int>(table.size());
-                table.push_back(r);
-                editor.defineStyle(cfg.baseStyle + slot, r.fore, r.back, r.flags);
-            } else {
-                // Out of style numbers: reuse slot 0 so text still renders,
-                // and flag the degradation to the caller.
-                result.budgetExceeded = true;
-                slot = 0;
-            }
-        }
-
-        editor.styleRange(span.start, span.length, cfg.baseStyle + slot);
+        int onStyle = slotFor(r);
+        editor.styleRange(span.start, span.length, onStyle);
 
         if (span.attr.flags & AF_Strike)
             editor.strikeRange(span.start, span.length);
+
+        if (span.attr.flags & AF_Blink) {
+            // Allocate the "hidden" twin: foreground painted in the background
+            // color so the text vanishes on the off phase.
+            Color bk = r.back.set ? r.back : cfg.defaultBack;
+            int offStyle = slotFor(Resolved{bk, bk, AF_None});
+            result.blinkRanges.push_back(BlinkRange{span.start, span.length, onStyle, offStyle});
+        }
     }
 
     result.stylesUsed = static_cast<int>(table.size());

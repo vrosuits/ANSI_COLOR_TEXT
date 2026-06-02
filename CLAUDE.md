@@ -38,7 +38,7 @@ ctest --test-dir build          # runs the core self-test
 
 ## Gotchas
 
-- Scintilla styles have **no strikethrough / blink** attribute. Strike is drawn with an indicator (`INDIC_STRIKE`); blink is parsed but not yet rendered (`editFlash` is a placeholder).
+- Scintilla styles have **no strikethrough / blink** attribute. Strike is drawn with an indicator (`INDIC_STRIKE`). Blink is simulated: the styler allocates a paired hidden style (fg = bg) per blink run and reports `blinkRanges`; the plugin runs a `SetTimer` loop (`blinkTimerProc`) that toggles ranges between the visible and hidden styles. "Toggle Blink" pauses/resumes it.
 - `STYLE_MAX` is 255 — true-color-heavy art can exhaust style slots; the styler reports `budgetExceeded` and falls back rather than failing.
 - CP437 ANSI art needs a matching font (IBM VGA / "Terminal") to show box-drawing glyphs; the buffer is treated as UTF-8 bytes.
 - The render command **rewrites the Scintilla buffer** with escape-stripped text (the on-disk file is untouched unless saved).

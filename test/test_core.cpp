@@ -103,6 +103,17 @@ static void testStylerStrike() {
     CHECK(ed.strikeCount == 1);
 }
 
+static void testStylerBlink() {
+    // Blink red text -> one blink range with distinct on/off styles.
+    ParsedDocument d = parse("\x1b[5;31mBlink\x1b[0m plain");
+    MockEditor ed;
+    StylerConfig cfg;
+    StyleResult r = applyToEditor(d, ed, cfg);
+    CHECK(r.blinkRanges.size() == 1);
+    CHECK(r.blinkRanges[0].onStyle != r.blinkRanges[0].offStyle);
+    CHECK(r.blinkRanges[0].length == 5); // "Blink"
+}
+
 int main() {
     testPalette();
     testParseBasic();
@@ -111,6 +122,7 @@ int main() {
     testNonSgrDropped();
     testStylerDedup();
     testStylerStrike();
+    testStylerBlink();
 
     if (g_failures == 0) {
         std::printf("OK: all core tests passed\n");
