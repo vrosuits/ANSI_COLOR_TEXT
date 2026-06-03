@@ -88,6 +88,8 @@ void loadSettings(const TCHAR* configDir, PluginSettings& s) {
     s.animDelayMs         = getInt(path, TEXT("animDelayMs"),         s.animDelayMs);
     s.animChunkBytes      = getInt(path, TEXT("animChunkBytes"),      s.animChunkBytes);
     s.defaultView         = getInt(path, TEXT("defaultView"),         s.defaultView);
+    s.renderFont          = getStr(path, TEXT("renderFont"),          s.renderFont);
+    s.renderFontSize      = getInt(path, TEXT("renderFontSize"),      s.renderFontSize);
 
     // Guard against nonsensical persisted values.
     if (s.tabWidth < 1)        s.tabWidth = 1;
@@ -123,6 +125,8 @@ void saveSettings(const TCHAR* configDir, const PluginSettings& s) {
     putInt(path, TEXT("animDelayMs"),         s.animDelayMs);
     putInt(path, TEXT("animChunkBytes"),      s.animChunkBytes);
     putInt(path, TEXT("defaultView"),         s.defaultView);
+    putStr(path, TEXT("renderFont"),          s.renderFont);
+    putInt(path, TEXT("renderFontSize"),      s.renderFontSize);
 
     putInt(path, TEXT("aiSelected"), s.aiSelected);
     for (size_t i = 0; i < s.ai.size(); ++i) {

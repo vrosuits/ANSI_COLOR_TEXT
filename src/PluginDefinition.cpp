@@ -151,6 +151,19 @@ LRESULT sci(HWND h, UINT msg, WPARAM w = 0, LPARAM l = 0) {
 
 COLORREF toColorRef(const ansi::Color& c) { return RGB(c.r, c.g, c.b); }
 
+// Apply the optional render font and zero Scintilla's extra line spacing so
+// block glyphs (U+2580/2584/2588 ...) tile without fine lines between rows. Call
+// before SCI_STYLECLEARALL so the font/size propagate to every derived style.
+void applyRenderFontAndSpacing(HWND h) {
+    sci(h, SCI_SETEXTRAASCENT,  0, 0);
+    sci(h, SCI_SETEXTRADESCENT, 0, 0);
+    if (!g_settings.renderFont.empty())
+        sci(h, SCI_STYLESETFONT, STYLE_DEFAULT,
+            reinterpret_cast<LPARAM>(g_settings.renderFont.c_str()));
+    if (g_settings.renderFontSize > 0)
+        sci(h, SCI_STYLESETSIZE, STYLE_DEFAULT, g_settings.renderFontSize);
+}
+
 std::string readDocument(HWND h) {
     LRESULT len = sci(h, SCI_GETLENGTH);
     std::string buf(static_cast<size_t>(len), '\0');
@@ -170,6 +183,7 @@ public:
         // Modern Scintilla: SCI_SETLEXER is gone. Setting a null ILexer leaves
         // the document in container/no-lexer mode so our styling is not undone.
         sci(h_, SCI_SETILEXER, 0, 0);
+        applyRenderFontAndSpacing(h_);
         sci(h_, SCI_STYLESETFORE, STYLE_DEFAULT, toColorRef(defFore_));
         sci(h_, SCI_STYLESETBACK, STYLE_DEFAULT, toColorRef(defBack_));
         sci(h_, SCI_STYLECLEARALL);
@@ -303,6 +317,7 @@ void setPlainText(HWND h, const std::string& text) {
     sci(h, SCI_SETREADONLY, 0);
     sci(h, SCI_SETCODEPAGE, SC_CP_UTF8);
     sci(h, SCI_SETILEXER, 0, 0);
+    applyRenderFontAndSpacing(h);
     sci(h, SCI_STYLESETFORE, STYLE_DEFAULT, toColorRef(defFore));
     sci(h, SCI_STYLESETBACK, STYLE_DEFAULT, toColorRef(defBack));
     sci(h, SCI_STYLECLEARALL);
