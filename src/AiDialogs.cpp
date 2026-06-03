@@ -127,10 +127,11 @@ void runGeneration() {
         return;
     }
 
-    // fromSymbolicEscapes is a superset of normalizeEscapes: it also converts a
-    // bare literal "ESC[" (which some models, e.g. deepseek-chat, emit instead of
-    // a 0x1b control byte) into a real ESC.
-    std::string text = ansi::fromSymbolicEscapes(ansi::stripCodeFence(res.text));
+    // decodeModelEscapes reconstructs the intended bytes from however the model
+    // escaped them: real ESC, "ESC[", \xHH/\uXXXX, and the bare forms (xE2x95x90
+    // box-glyph runs, xAA, x255) that otherwise render as literal text and wreck
+    // the alignment of the art.
+    std::string text = ansi::decodeModelEscapes(ansi::stripCodeFence(res.text));
     openInNewTabAndRender(text, g_animation);
 }
 

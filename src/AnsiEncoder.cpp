@@ -210,4 +210,56 @@ std::string fromSymbolicEscapes(const std::string& s) {
     return out;
 }
 
+std::string decodeModelEscapes(const std::string& in) {
+    // First handle the backslash / ESC / \xHH / \uXXXX forms.
+    std::string s = fromSymbolicEscapes(in);
+
+    auto isAlpha = [](char c) { char l = static_cast<char>(c | 0x20); return l >= 'a' && l <= 'z'; };
+    auto isDigit = [](char c) { return c >= '0' && c <= '9'; };
+
+    std::string out;
+    out.reserve(s.size());
+    const size_t n = s.size();
+    for (size_t i = 0; i < n;) {
+        char c = s[i];
+        if (c == 'x' || c == 'X') {
+            // Greedily collect a run of  x<2 hex>  groups starting here.
+            size_t j = i;
+            std::string bytes;
+            while (j + 2 < n && (s[j] == 'x' || s[j] == 'X') &&
+                   hexVal(s[j + 1]) >= 0 && hexVal(s[j + 2]) >= 0) {
+                bytes += static_cast<char>(hexVal(s[j + 1]) * 16 + hexVal(s[j + 2]));
+                j += 3;
+            }
+            const size_t groups = bytes.size();
+            const bool prevAlpha = (i > 0 && isAlpha(s[i - 1]));
+
+            // A chain of 2+ groups is unambiguously a byte-escape run (e.g. the
+            // three bytes of an escaped box glyph) - always decode it.
+            if (groups >= 2) { out += bytes; i = j; continue; }
+
+            // A single  x<2 hex>  group: decode only if it stands alone (not glued
+            // to a word) and the next char doesn't continue a longer number
+            // (so "x255" is read as decimal below, not as hex 0x25 + '5').
+            if (groups == 1 && !prevAlpha && (j >= n || hexVal(s[j]) < 0)) {
+                out += bytes; i = j; continue;
+            }
+
+            //  x<decimal 0-255>  (1 or 3 digits; 2 digits are taken as hex above).
+            if (i + 1 < n && isDigit(s[i + 1]) && !prevAlpha) {
+                size_t k = i + 1;
+                int val = 0, cnt = 0;
+                while (k < n && isDigit(s[k]) && cnt < 3) { val = val * 10 + (s[k] - '0'); ++k; ++cnt; }
+                bool moreDigits = (k < n && isDigit(s[k]));
+                if ((cnt == 1 || cnt == 3) && val <= 255 && !moreDigits) {
+                    out += static_cast<char>(val);
+                    i = k; continue;
+                }
+            }
+        }
+        out += c; ++i;
+    }
+    return out;
+}
+
 } // namespace ansi

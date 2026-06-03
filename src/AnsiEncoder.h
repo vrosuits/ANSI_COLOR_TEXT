@@ -53,4 +53,15 @@ std::string toSymbolicEscapes(const std::string& withEsc);
 // ESC/Esc/esc immediately followed by '[' or ']'. "\\" unescapes to one '\'.
 std::string fromSymbolicEscapes(const std::string& symbolic);
 
+// Aggressively reconstruct the intended byte stream from AI-generated output.
+// Does everything fromSymbolicEscapes does, then also decodes the BARE (no
+// backslash) byte escapes some models emit for non-ASCII/control bytes:
+//   - a run of two or more  x<2 hex>  groups (e.g. xE2x95x90 == the UTF-8 of the
+//     box glyph U+2550) -> those raw bytes;
+//   - a standalone  x<2 hex>  (e.g. xAA, x1b, x89) or  x<1-or-3 decimal, 0-255>
+//     (e.g. x0, x255) that is NOT glued to a surrounding word -> that byte.
+// This is deliberately aggressive (good for ANSI art, too aggressive for prose);
+// real characters and ordinary words pass through untouched.
+std::string decodeModelEscapes(const std::string& text);
+
 } // namespace ansi

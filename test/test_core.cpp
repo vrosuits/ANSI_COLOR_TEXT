@@ -412,6 +412,27 @@ static void testSymbolicEscapes() {
     CHECK(fromSymbolicEscapes("\xE2\x95\x90") == "\xE2\x95\x90");
 }
 
+static void testDecodeModelEscapes() {
+    using ansi::decodeModelEscapes;
+
+    // Bare (no-backslash) hex byte chains: the box-glyph run that wrecked
+    // alignment. xE2x95x90 == U+2550; decode the whole chain.
+    CHECK(decodeModelEscapes("xE2x95x90") == "\xE2\x95\x90");
+    // A chain right after an SGR (ends in 'm') still decodes.
+    CHECK(decodeModelEscapes("\x1b[31mxE2x95x90") == "\x1b[31m\xE2\x95\x90");
+    // Standalone bare hex byte (not glued to a word) decodes.
+    CHECK(decodeModelEscapes("a xAA") == "a \xAA");
+    CHECK(decodeModelEscapes("x89") == "\x89");
+    // Bare decimal byte (1 or 3 digits, 0-255).
+    CHECK(decodeModelEscapes(" x255") == " \xFF");
+    CHECK(decodeModelEscapes("x0;") == std::string("\x00;", 2));
+    // Words are NOT corrupted: x glued to a preceding letter is left alone.
+    CHECK(decodeModelEscapes("matrix12") == "matrix12");
+    CHECK(decodeModelEscapes("max") == "max");
+    // Still does everything fromSymbolicEscapes does.
+    CHECK(decodeModelEscapes("\\xE2\\x95\\x90 ESC[0m") == "\xE2\x95\x90 \x1b[0m");
+}
+
 int main() {
     testPalette();
     testFrameBoundary();
@@ -419,6 +440,7 @@ int main() {
     testEncodeSgr();
     testEncodeRoundTrip();
     testSymbolicEscapes();
+    testDecodeModelEscapes();
     testJson();
     testJsonEscapeAndBase64();
     testAiRequest();
