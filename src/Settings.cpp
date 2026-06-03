@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #include "Settings.h"
+#include "AiClient.h"
 
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -28,6 +30,22 @@ std::wstring iniPath(const TCHAR* configDir) {
     return p;
 }
 
+std::wstring toW(const std::string& s) {
+    if (s.empty()) return std::wstring();
+    int n = ::MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
+    std::wstring w(n, L'\0');
+    ::MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), &w[0], n);
+    return w;
+}
+
+std::string toN(const std::wstring& w) {
+    if (w.empty()) return std::string();
+    int n = ::WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), nullptr, 0, nullptr, nullptr);
+    std::string s(n, '\0');
+    ::WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), &s[0], n, nullptr, nullptr);
+    return s;
+}
+
 int getInt(const std::wstring& path, const TCHAR* key, int dflt) {
     return static_cast<int>(::GetPrivateProfileInt(kSection, key, dflt, path.c_str()));
 }
@@ -36,6 +54,23 @@ void putInt(const std::wstring& path, const TCHAR* key, int value) {
     TCHAR buf[32];
     wsprintf(buf, TEXT("%d"), value);
     ::WritePrivateProfileString(kSection, key, buf, path.c_str());
+}
+
+std::string getStr(const std::wstring& path, const TCHAR* key, const std::string& dflt) {
+    TCHAR buf[4096];
+    ::GetPrivateProfileString(kSection, key, toW(dflt).c_str(), buf, ARRAYSIZE(buf), path.c_str());
+    return toN(buf);
+}
+
+void putStr(const std::wstring& path, const TCHAR* key, const std::string& value) {
+    ::WritePrivateProfileString(kSection, key, toW(value).c_str(), path.c_str());
+}
+
+// Per-provider ini key, e.g. "ai2model".
+std::wstring aiKey(int i, const TCHAR* suffix) {
+    TCHAR b[64];
+    wsprintf(b, TEXT("ai%d%s"), i, suffix);
+    return b;
 }
 
 } // namespace
@@ -57,6 +92,18 @@ void loadSettings(const TCHAR* configDir, PluginSettings& s) {
     if (s.blinkIntervalMs < 50) s.blinkIntervalMs = 50;
     if (s.animDelayMs < 1)     s.animDelayMs = 1;
     if (s.animChunkBytes < 1)  s.animChunkBytes = 1;
+
+    // AI providers: start from the built-in defaults, then override from the ini.
+    std::vector<ansi::AiProvider> defs = ansi::defaultProviders();
+    s.ai.resize(defs.size());
+    for (size_t i = 0; i < defs.size(); ++i) {
+        int idx = static_cast<int>(i);
+        s.ai[i].baseUrl   = getStr(path, aiKey(idx, TEXT("base")).c_str(),  defs[i].baseUrl);
+        s.ai[i].model     = getStr(path, aiKey(idx, TEXT("model")).c_str(), defs[i].model);
+        s.ai[i].apiKeyEnc = getStr(path, aiKey(idx, TEXT("key")).c_str(),   std::string());
+    }
+    s.aiSelected = getInt(path, TEXT("aiSelected"), 0);
+    if (s.aiSelected < 0 || s.aiSelected >= static_cast<int>(s.ai.size())) s.aiSelected = 0;
 }
 
 void saveSettings(const TCHAR* configDir, const PluginSettings& s) {
@@ -70,4 +117,12 @@ void saveSettings(const TCHAR* configDir, const PluginSettings& s) {
     putInt(path, TEXT("blinkIntervalMs"),     s.blinkIntervalMs);
     putInt(path, TEXT("animDelayMs"),         s.animDelayMs);
     putInt(path, TEXT("animChunkBytes"),      s.animChunkBytes);
+
+    putInt(path, TEXT("aiSelected"), s.aiSelected);
+    for (size_t i = 0; i < s.ai.size(); ++i) {
+        int idx = static_cast<int>(i);
+        putStr(path, aiKey(idx, TEXT("base")).c_str(),  s.ai[i].baseUrl);
+        putStr(path, aiKey(idx, TEXT("model")).c_str(), s.ai[i].model);
+        putStr(path, aiKey(idx, TEXT("key")).c_str(),   s.ai[i].apiKeyEnc);
+    }
 }

@@ -19,6 +19,7 @@
 
 #include "Scintilla.h"
 #include "Notepad_plus_msgs.h"
+#include "menuCmdID.h"
 
 #include <commdlg.h>
 #include <string>
@@ -83,8 +84,10 @@ void commandMenuInit() {
     setCommand(6,  TEXT("Insert Reset Code"),             insertReset,      nullptr, false);
     setCommand(7,  TEXT("Import ANSI File..."),           importAnsi,       nullptr, false);
     setCommand(8,  TEXT("Export ANSI File..."),           exportAnsi,       nullptr, false);
-    setCommand(9,  TEXT("Settings..."),                   showSettings,     nullptr, false);
-    setCommand(10, TEXT("About"),                         showAbout,        nullptr, false);
+    setCommand(9,  TEXT("Generate ANSI with AI..."),      generateAnsiAi,   nullptr, false);
+    setCommand(10, TEXT("AI Settings..."),                aiSettings,       nullptr, false);
+    setCommand(11, TEXT("Settings..."),                   showSettings,     nullptr, false);
+    setCommand(12, TEXT("About"),                         showAbout,        nullptr, false);
 }
 
 void commandMenuCleanUp() {}
@@ -415,4 +418,19 @@ void exportAnsi() {
     DWORD written = 0;
     ::WriteFile(hf, data.data(), static_cast<DWORD>(data.size()), &written, nullptr);
     ::CloseHandle(hf);
+}
+
+void openInNewTabAndRender(const std::string& ansiText, bool animate) {
+    ensureSettings();
+    // Open a fresh document so generated output never clobbers the user's file.
+    ::SendMessage(nppData._nppHandle, NPPM_MENUCOMMAND, 0, IDM_FILE_NEW);
+    HWND h = currentScintilla();
+    if (!h) return;
+    sci(h, SCI_SETCODEPAGE, SC_CP_UTF8);
+    sci(h, SCI_SETREADONLY, 0);
+    sci(h, SCI_CLEARALL);
+    sci(h, SCI_APPENDTEXT, static_cast<WPARAM>(ansiText.size()),
+        reinterpret_cast<LPARAM>(ansiText.data()));
+    if (animate) playAnimation();
+    else         renderAnsi();
 }

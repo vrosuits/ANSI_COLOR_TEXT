@@ -18,7 +18,18 @@
 #pragma once
 
 #include <windows.h>
+#include <string>
+#include <vector>
 #include "AnsiScreen.h"
+
+// Per-provider AI settings. baseUrl/model override the built-in defaults;
+// apiKeyEnc is the DPAPI-encrypted, base64-encoded key as persisted (empty = no
+// key). The provider name/kind come from ansi::defaultProviders() by index.
+struct AiProviderSettings {
+    std::string baseUrl;
+    std::string model;
+    std::string apiKeyEnc;
+};
 
 // All plugin-tunable options in one place.
 struct PluginSettings {
@@ -36,6 +47,10 @@ struct PluginSettings {
     int  blinkIntervalMs     = 500;  // blink toggle period
     int  animDelayMs         = 40;   // delay between animation frames
     int  animChunkBytes      = 8;    // bytes revealed per animation frame
+
+    // --- AI generation ---
+    int aiSelected = 0;                       // index into ansi::defaultProviders()
+    std::vector<AiProviderSettings> ai;       // parallel to defaultProviders()
 
     // Build the renderer config from these settings.
     ansi::ScreenConfig toScreenConfig() const {
