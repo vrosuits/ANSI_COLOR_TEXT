@@ -75,19 +75,19 @@ AiRequest buildRequest(const AiProvider& provider, const std::string& system,
                        const std::string& user) {
     AiRequest req;
     std::string base = trimTrailingSlash(provider.baseUrl);
-    req.headers.push_back("Content-Type: application/json");
+    req.headers.emplace_back("Content-Type: application/json");
 
     if (provider.kind == AiKind::Anthropic) {
         req.url = base + "/v1/messages";
-        req.headers.push_back("x-api-key: " + provider.apiKey);
-        req.headers.push_back("anthropic-version: 2023-06-01");
+        req.headers.emplace_back("x-api-key: " + provider.apiKey);
+        req.headers.emplace_back("anthropic-version: 2023-06-01");
         req.body = "{" + jstr("model", provider.model) +
                    ",\"max_tokens\":4096," + jstr("system", system) +
                    ",\"messages\":[{\"role\":\"user\",\"content\":\"" +
                    jsonEscape(user) + "\"}]}";
     } else {
         req.url = base + "/v1/chat/completions";
-        req.headers.push_back("Authorization: Bearer " + provider.apiKey);
+        req.headers.emplace_back("Authorization: Bearer " + provider.apiKey);
         req.body = "{" + jstr("model", provider.model) +
                    ",\"messages\":[{\"role\":\"system\",\"content\":\"" +
                    jsonEscape(system) +
