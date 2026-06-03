@@ -1,0 +1,30 @@
+{
+  "skill_name": "build-test",
+  "evals": [
+    {
+      "id": 0,
+      "name": "core-only-quick-check",
+      "prompt": "I just tweaked the SGR parsing in src/AnsiSgr.cpp. Can you quickly confirm the core logic still compiles and the self-test passes? I don't need the full plugin DLL right now, just a fast sanity check.",
+      "expected_output": "Uses the fast vcvars-free clang++ core build (not a full MSVC/_build.bat DLL build), runs the host self-test, and reports 'OK: all core tests passed'. Avoids the bare `cmake --build` missing-stdlib-header failure.",
+      "files": [],
+      "assertions": [
+        {"id": "a1_used_quick_path", "text": "Used the clang++ host build (not the full _build.bat / MSVC DLL build) for a core-only change"},
+        {"id": "a2_selftest_passed", "text": "Ran the host self-test and it reported 'OK: all core tests passed'"},
+        {"id": "a3_no_vcvars_error", "text": "Did not get stuck on the bare `cmake --build` missing-standard-header (vcvars) error"},
+        {"id": "a4_correct_sources", "text": "Included the AI core sources (AiJson.cpp, AiClient.cpp) so the link step succeeded"}
+      ]
+    },
+    {
+      "id": 1,
+      "name": "full-dll-build-and-test",
+      "prompt": "Build the plugin DLL and run the whole test suite so I know everything's green before I commit.",
+      "expected_output": "Builds the DLL via _build.bat (vcvars + Ninja), sees BUILD_DONE / ANSI_COLOR_TEXT.dll, then runs ctest and reports the tests passing. Does not get stuck on a bare `cmake --build` that fails for lack of the vcvars environment.",
+      "files": [],
+      "assertions": [
+        {"id": "b1_used_build_bat", "text": "Built via _build.bat or an explicitly vcvars-wrapped MSVC build, not a bare `cmake --build`"},
+        {"id": "b2_dll_built", "text": "Produced the DLL (saw BUILD_DONE / ANSI_COLOR_TEXT.dll)"},
+        {"id": "b3_tests_passed", "text": "Ran ctest and reported the host self-test passing"}
+      ]
+    }
+  ]
+}

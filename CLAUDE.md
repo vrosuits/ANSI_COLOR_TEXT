@@ -42,7 +42,7 @@ Core + host self-test (any C++17 compiler):
 ```
 cmake -B build && cmake --build build && ctest --test-dir build
 ```
-Quick test compile: `clang++ -std=c++17 -Isrc src/AnsiPalette.cpp src/AnsiSgr.cpp src/AnsiParser.cpp src/AnsiScreen.cpp src/AnsiStyler.cpp test/test_core.cpp -o t.exe`. (Local **mingw g++ is broken — missing cc1plus; use clang++ or MSVC**.)
+Quick test compile (host-only, no MSVC/vcvars — fastest local loop): `clang++ -std=c++17 -Isrc src/AnsiPalette.cpp src/AnsiSgr.cpp src/AnsiParser.cpp src/AnsiScreen.cpp src/AnsiStyler.cpp src/AnsiEncoder.cpp src/AiJson.cpp src/AiClient.cpp test/test_core.cpp -o t.exe`. Keep this source list in sync with the `ansicore` target in `CMakeLists.txt` — every non-Win32 `.cpp` there must appear here, or the link fails on missing symbols. (Local **mingw g++ is broken — missing cc1plus; use clang++ or MSVC**.)
 
 The **DLL builds on Windows with MSVC** (verified) and needs the Npp SDK headers. CMake fetches the plugin template automatically, or pass `-DNPP_SDK_INCLUDE=<path>`. The VS *generator* can't see the installed BuildTools/Insiders here, so build via vcvars + Ninja:
 ```
