@@ -18,6 +18,7 @@
 #include "resource.h"
 #include "AiClient.h"
 #include "AiHttp.h"
+#include "AnsiEncoder.h"   // fromSymbolicEscapes (robust ESC normalization)
 
 #include <windows.h>
 #include <string>
@@ -102,7 +103,12 @@ void runGeneration() {
         return;
     }
 
-    std::string system = ansi::aiSystemPrompt(g_animation);
+    // Use the provider's custom system prompt if set, else the built-in default
+    // (which adapts to the animation toggle).
+    int sel = g_settings.aiSelected;
+    std::string custom;
+    if (sel >= 0 && sel < (int)g_settings.ai.size()) custom = g_settings.ai[sel].systemPrompt;
+    std::string system = custom.empty() ? ansi::aiSystemPrompt(g_animation) : custom;
     ansi::AiRequest req = ansi::buildRequest(p, system, g_prompt);
 
     HCURSOR prev = ::SetCursor(::LoadCursor(nullptr, IDC_WAIT));
@@ -121,7 +127,10 @@ void runGeneration() {
         return;
     }
 
-    std::string text = ansi::normalizeEscapes(ansi::stripCodeFence(res.text));
+    // fromSymbolicEscapes is a superset of normalizeEscapes: it also converts a
+    // bare literal "ESC[" (which some models, e.g. deepseek-chat, emit instead of
+    // a 0x1b control byte) into a real ESC.
+    std::string text = ansi::fromSymbolicEscapes(ansi::stripCodeFence(res.text));
     openInNewTabAndRender(text, g_animation);
 }
 
@@ -137,6 +146,7 @@ void storeProvider(HWND dlg, int idx) {
     g_settings.ai[idx].model     = getText(dlg, IDC_AI_MODEL);
     std::string key = getText(dlg, IDC_AI_KEY);
     g_settings.ai[idx].apiKeyEnc = key.empty() ? std::string() : dpapiProtect(key);
+    g_settings.ai[idx].systemPrompt = getText(dlg, IDC_AI_SYSPROMPT);
 }
 
 // Load provider `idx` from settings into the dialog's edit fields.
@@ -145,6 +155,7 @@ void loadProvider(HWND dlg, int idx) {
     setText(dlg, IDC_AI_BASE,  g_settings.ai[idx].baseUrl);
     setText(dlg, IDC_AI_MODEL, g_settings.ai[idx].model);
     setText(dlg, IDC_AI_KEY,   dpapiUnprotect(g_settings.ai[idx].apiKeyEnc));
+    setText(dlg, IDC_AI_SYSPROMPT, g_settings.ai[idx].systemPrompt);
 }
 
 INT_PTR CALLBACK aiProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM) {
@@ -167,6 +178,10 @@ INT_PTR CALLBACK aiProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM) {
                         int sel = (int)::SendDlgItemMessage(dlg, IDC_AI_PROVIDER, CB_GETCURSEL, 0, 0);
                         if (sel >= 0) { g_uiIndex = sel; loadProvider(dlg, sel); }
                     }
+                    return TRUE;
+                case IDC_AI_LOADDEFAULT:
+                    // Fill the box with the built-in default so the user can tweak it.
+                    setText(dlg, IDC_AI_SYSPROMPT, ansi::aiSystemPrompt(false));
                     return TRUE;
                 case IDOK:
                     storeProvider(dlg, g_uiIndex);
