@@ -52,6 +52,14 @@ void load(HWND dlg) {
     setInt(dlg, IDC_BLINK,     g_settings.blinkIntervalMs);
     setInt(dlg, IDC_ANIMDELAY, g_settings.animDelayMs);
     setInt(dlg, IDC_ANIMCHUNK, g_settings.animChunkBytes);
+
+    HWND combo = ::GetDlgItem(dlg, IDC_DEFAULTVIEW);
+    ::SendMessage(combo, CB_RESETCONTENT, 0, 0);
+    ::SendMessage(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(TEXT("Color (rendered)")));
+    ::SendMessage(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(TEXT("Raw - escape codes")));
+    ::SendMessage(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(TEXT("Raw - \\e symbols")));
+    int v = (g_settings.defaultView >= 0 && g_settings.defaultView <= 2) ? g_settings.defaultView : 0;
+    ::SendMessage(combo, CB_SETCURSEL, static_cast<WPARAM>(v), 0);
 }
 
 // Read the controls back into g_settings, clamping to sane ranges.
@@ -72,6 +80,9 @@ void store(HWND dlg) {
     if (g_settings.blinkIntervalMs < 50) g_settings.blinkIntervalMs = 50;
     if (g_settings.animDelayMs < 1)      g_settings.animDelayMs = 1;
     if (g_settings.animChunkBytes < 1)   g_settings.animChunkBytes = 1;
+
+    LRESULT sel = ::SendMessage(::GetDlgItem(dlg, IDC_DEFAULTVIEW), CB_GETCURSEL, 0, 0);
+    if (sel != CB_ERR) g_settings.defaultView = static_cast<int>(sel);
 }
 
 INT_PTR CALLBACK dlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM) {

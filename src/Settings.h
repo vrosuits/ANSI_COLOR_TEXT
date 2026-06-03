@@ -48,6 +48,11 @@ struct PluginSettings {
     int  animDelayMs         = 40;   // delay between animation frames
     int  animChunkBytes      = 8;    // bytes revealed per animation frame
 
+    // --- view ---
+    // Which view to show automatically when an ANSI file is imported or
+    // AI-generated: 0 = Color (rendered), 1 = Raw escape codes, 2 = Raw \e symbols.
+    int  defaultView         = 0;
+
     // --- AI generation ---
     int aiSelected = 0;                       // index into ansi::defaultProviders()
     std::vector<AiProviderSettings> ai;       // parallel to defaultProviders()

@@ -371,6 +371,16 @@ void viewRaw(HWND h, uintptr_t id, bool symbolic) {
     g_bufStates[id].mode = symbolic ? ViewMode::RawSymbols : ViewMode::RawCodes;
 }
 
+// Show buffer `id` in the configured default view (after import / AI generate).
+void applyDefaultView(HWND h, uintptr_t id) {
+    switch (g_settings.defaultView) {
+        case 1:  viewRaw(h, id, /*symbolic=*/false); break;  // raw escape codes
+        case 2:  viewRaw(h, id, /*symbolic=*/true);  break;  // raw \e symbols
+        case 0:
+        default: viewColor(h, id);                   break;  // rendered color
+    }
+}
+
 // Before a save, swap the canonical raw (real ESC) into the active view so the
 // file on disk is always real ANSI regardless of the current view; restore after.
 void onFileBeforeSave(uintptr_t bufId) {
@@ -406,7 +416,17 @@ void persistSettings() {
     saveSettings(pluginConfigDir().c_str(), g_settings);
 }
 
-void reRenderCurrent() { renderAnsi(); }
+void reRenderCurrent() {
+    // Re-apply settings to whatever view is active; leave untracked buffers alone
+    // (don't transform a document the user never asked us to render).
+    HWND h = currentScintilla();
+    if (!h) return;
+    uintptr_t id = currentBufferId();
+    auto it = g_bufStates.find(id);
+    if (it == g_bufStates.end()) return;
+    if (it->second.mode == ViewMode::Color) viewColor(h, id);
+    else                                    viewRaw(h, id, it->second.mode == ViewMode::RawSymbols);
+}
 
 void handleNotification(SCNotification* n) {
     if (!n) return;
@@ -569,15 +589,21 @@ void importAnsi() {
     ofn.nMaxFile    = MAX_PATH;
     ofn.Flags       = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
     if (::GetOpenFileName(&ofn)) {
-        // Open the file as a normal document; the user can then Render or edit it.
+        ensureSettings();
+        // Open the file as a normal document, then show it in the configured
+        // default view (color by default) so imports display immediately.
         ::SendMessage(nppData._nppHandle, NPPM_DOOPEN, 0, reinterpret_cast<LPARAM>(path));
+        HWND h = currentScintilla();
+        if (h) applyDefaultView(h, currentBufferId());
     }
 }
 
 void exportAnsi() {
     HWND h = currentScintilla();
     if (!h) return;
-    std::string data = readDocument(h);
+    // Export the canonical raw ANSI (real ESC), never the stripped color preview
+    // or a symbolic view.
+    std::string data = captureRaw(h, currentBufferId());
 
     TCHAR path[MAX_PATH] = {0};
     OPENFILENAME ofn = {0};
@@ -614,5 +640,5 @@ void openInNewTabAndRender(const std::string& ansiText, bool animate) {
     sci(h, SCI_APPENDTEXT, static_cast<WPARAM>(ansiText.size()),
         reinterpret_cast<LPARAM>(ansiText.data()));
     if (animate) playAnimation();
-    else         renderAnsi();
+    else         applyDefaultView(h, currentBufferId());
 }

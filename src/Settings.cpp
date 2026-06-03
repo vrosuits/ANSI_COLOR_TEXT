@@ -86,12 +86,14 @@ void loadSettings(const TCHAR* configDir, PluginSettings& s) {
     s.blinkIntervalMs     = getInt(path, TEXT("blinkIntervalMs"),     s.blinkIntervalMs);
     s.animDelayMs         = getInt(path, TEXT("animDelayMs"),         s.animDelayMs);
     s.animChunkBytes      = getInt(path, TEXT("animChunkBytes"),      s.animChunkBytes);
+    s.defaultView         = getInt(path, TEXT("defaultView"),         s.defaultView);
 
     // Guard against nonsensical persisted values.
     if (s.tabWidth < 1)        s.tabWidth = 1;
     if (s.blinkIntervalMs < 50) s.blinkIntervalMs = 50;
     if (s.animDelayMs < 1)     s.animDelayMs = 1;
     if (s.animChunkBytes < 1)  s.animChunkBytes = 1;
+    if (s.defaultView < 0 || s.defaultView > 2) s.defaultView = 0;
 
     // AI providers: start from the built-in defaults, then override from the ini.
     std::vector<ansi::AiProvider> defs = ansi::defaultProviders();
@@ -117,6 +119,7 @@ void saveSettings(const TCHAR* configDir, const PluginSettings& s) {
     putInt(path, TEXT("blinkIntervalMs"),     s.blinkIntervalMs);
     putInt(path, TEXT("animDelayMs"),         s.animDelayMs);
     putInt(path, TEXT("animChunkBytes"),      s.animChunkBytes);
+    putInt(path, TEXT("defaultView"),         s.defaultView);
 
     putInt(path, TEXT("aiSelected"), s.aiSelected);
     for (size_t i = 0; i < s.ai.size(); ++i) {
