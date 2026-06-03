@@ -40,6 +40,25 @@ bool isChecked(HWND dlg, int id) {
     return ::IsDlgButtonChecked(dlg, id) == BST_CHECKED;
 }
 
+std::wstring toW(const std::string& s) {
+    if (s.empty()) return std::wstring();
+    int n = ::MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), nullptr, 0);
+    std::wstring w(n, L'\0');
+    ::MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), &w[0], n);
+    return w;
+}
+
+std::string getTextUtf8(HWND dlg, int id) {
+    int len = ::GetWindowTextLength(::GetDlgItem(dlg, id));
+    std::wstring w(len, L'\0');
+    if (len) ::GetDlgItemText(dlg, id, &w[0], len + 1);
+    if (w.empty()) return std::string();
+    int n = ::WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+    std::string s(n, '\0');
+    ::WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), &s[0], n, nullptr, nullptr);
+    return s;
+}
+
 // Populate the controls from g_settings.
 void load(HWND dlg) {
     setInt(dlg, IDC_MAXWIDTH,  g_settings.maxWidth);
@@ -60,6 +79,9 @@ void load(HWND dlg) {
     ::SendMessage(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(TEXT("Raw - \\e symbols")));
     int v = (g_settings.defaultView >= 0 && g_settings.defaultView <= 2) ? g_settings.defaultView : 0;
     ::SendMessage(combo, CB_SETCURSEL, static_cast<WPARAM>(v), 0);
+
+    ::SetDlgItemText(dlg, IDC_FONTNAME, toW(g_settings.renderFont).c_str());
+    setInt(dlg, IDC_FONTSIZE, g_settings.renderFontSize);
 }
 
 // Read the controls back into g_settings, clamping to sane ranges.
@@ -83,6 +105,10 @@ void store(HWND dlg) {
 
     LRESULT sel = ::SendMessage(::GetDlgItem(dlg, IDC_DEFAULTVIEW), CB_GETCURSEL, 0, 0);
     if (sel != CB_ERR) g_settings.defaultView = static_cast<int>(sel);
+
+    g_settings.renderFont     = getTextUtf8(dlg, IDC_FONTNAME);
+    g_settings.renderFontSize = getInt(dlg, IDC_FONTSIZE, g_settings.renderFontSize);
+    if (g_settings.renderFontSize < 0) g_settings.renderFontSize = 0;
 }
 
 INT_PTR CALLBACK dlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM) {

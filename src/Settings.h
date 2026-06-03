@@ -54,6 +54,13 @@ struct PluginSettings {
     // AI-generated: 0 = Color (rendered), 1 = Raw escape codes, 2 = Raw \e symbols.
     int  defaultView         = 0;
 
+    // Optional render font. Block glyphs (U+2580 etc.) only tile seamlessly with
+    // a tight monospace / CP437 font; pick one here (e.g. "Consolas", "Cascadia
+    // Mono", an IBM VGA font) to remove the fine lines between blocks. Empty =
+    // leave Notepad++'s font. 0 size = leave Notepad++'s size.
+    std::string renderFont   = "";
+    int  renderFontSize      = 0;
+
     // --- AI generation ---
     int aiSelected = 0;                       // index into ansi::defaultProviders()
     std::vector<AiProviderSettings> ai;       // parallel to defaultProviders()

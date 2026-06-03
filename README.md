@@ -71,7 +71,10 @@ current source to a file.
 
 > ANSI art authored in code page 437 needs a CP437-capable font (e.g. an IBM VGA
 > / "Terminal" font) to display box-drawing and block glyphs correctly. The
-> document buffer is treated as UTF-8 bytes.
+> document buffer is treated as UTF-8 bytes. If you see thin gaps between block
+> glyphs, set a tight monospace **Render font** in **Settings…** — the plugin
+> zeroes Scintilla's extra line spacing and applies your chosen font so blocks
+> tile seamlessly.
 
 ## Building
 
