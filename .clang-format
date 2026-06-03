@@ -1,0 +1,23 @@
+# Matches the existing hand-written style: 4-space indent, attached braces,
+# west const, left-aligned pointers/refs, aligned trailing comments and tables.
+BasedOnStyle: LLVM
+IndentWidth: 4
+# 0 = never reflow; respects the existing hand-chosen line breaks/alignment.
+ColumnLimit: 0
+IndentCaseLabels: true
+PointerAlignment: Left
+ReferenceAlignment: Left
+NamespaceIndentation: None
+AlignTrailingComments: true
+AlignArrayOfStructures: Left
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortBlocksOnASingleLine: Always
+AllowShortLoopsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AlignConsecutiveAssignments: Consecutive
+# Declarations are hand-grouped here; algorithmic alignment pushes long-typed
+# rows out awkwardly, so leave name columns alone.
+AlignConsecutiveDeclarations: None
+KeepEmptyLinesAtTheStartOfBlocks: false
+SortIncludes: false

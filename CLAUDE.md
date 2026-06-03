@@ -58,6 +58,7 @@ CI (`.github/workflows/build.yml`, on push to `main` + PRs): `core-linux` builds
 ## Conventions
 
 - Licensed under **Apache-2.0** (© 2026 Antony J Ingram, UNIVERSAL I.T SYSTEMS). Every source file begins with the Apache license header — copy it onto any new `.cpp`/`.h`/`.rc`.
+- Linting: `.clang-format` is tuned to the **existing hand-aligned style** (4-space, attached braces, west const, `ColumnLimit: 0`) — format files you edit, but **never bulk-reformat** the tree. `.clang-tidy` covers semantic checks (bugprone/performance/safe modernizations). The `build-test` skill wraps the build + test + lint commands.
 
 ## Gotchas
 
