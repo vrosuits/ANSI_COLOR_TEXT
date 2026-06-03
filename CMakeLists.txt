@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
-project(NppAnsiColor LANGUAGES CXX)
+
+# ---------------------------------------------------------------------------
+# Single source of truth for the plugin version. Bump this one line to release:
+# it flows (via the generated Version.h) into the DLL's VERSIONINFO resource —
+# what Notepad++ Plugins Admin displays — and into the About box. CI also checks
+# that a pushed `v*` tag matches this number, so the version can't silently drift.
+# ---------------------------------------------------------------------------
+project(NppAnsiColor VERSION 1.0.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -50,6 +57,14 @@ if(WIN32)
     endif()
 
     enable_language(RC)
+
+    # Generate Version.h from the project() version above, for the VERSIONINFO
+    # resource and the About box.
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Version.h.in
+        ${CMAKE_CURRENT_BINARY_DIR}/generated/Version.h
+        @ONLY)
+
     add_library(NppAnsiColor SHARED
         src/DllMain.cpp
         src/PluginDefinition.cpp
@@ -61,7 +76,8 @@ if(WIN32)
         src/SettingsDialog.rc
     )
     target_link_libraries(NppAnsiColor PRIVATE ansicore comdlg32 winhttp crypt32)
-    target_include_directories(NppAnsiColor PRIVATE ${NPP_SDK_INCLUDE} src)
+    target_include_directories(NppAnsiColor PRIVATE
+        ${NPP_SDK_INCLUDE} src ${CMAKE_CURRENT_BINARY_DIR}/generated)
     target_compile_definitions(NppAnsiColor PRIVATE UNICODE _UNICODE)
 
     # Notepad++ loads "<name>.dll" from its plugins/<name>/ folder.
