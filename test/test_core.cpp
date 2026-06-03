@@ -379,12 +379,34 @@ static void testFenceAndEscapes() {
     CHECK(normalizeEscapes("\x1b[5m") == "\x1b[5m");
 }
 
+static void testSymbolicEscapes() {
+    using ansi::toSymbolicEscapes;
+    using ansi::fromSymbolicEscapes;
+
+    // Round-trip: real ESC <-> "\e", literal backslash preserved.
+    std::string raw = "\x1b[31mred\x1b[0m and a\\b";
+    std::string sym = toSymbolicEscapes(raw);
+    CHECK(sym == "\\e[31mred\\e[0m and a\\\\b");
+    CHECK(fromSymbolicEscapes(sym) == raw);
+
+    // Lenient parse of the forms a human/AI may type.
+    CHECK(fromSymbolicEscapes("ESC[1mX") == "\x1b[1mX");       // bare ESC + CSI
+    CHECK(fromSymbolicEscapes("esc]0;t") == "\x1b]0;t");       // bare esc + OSC
+    CHECK(fromSymbolicEscapes("\\033[2J") == "\x1b[2J");       // octal
+    CHECK(fromSymbolicEscapes("\\x1b[m") == "\x1b[m");          // hex
+    CHECK(fromSymbolicEscapes("\\u001b[m") == "\x1b[m");        // unicode
+    CHECK(fromSymbolicEscapes("^[[m") == "\x1b[m");             // caret notation
+    // A bare "ESC" not introducing a sequence is left alone (avoid false hits).
+    CHECK(fromSymbolicEscapes("ESCAPE") == "ESCAPE");
+}
+
 int main() {
     testPalette();
     testFrameBoundary();
     testAnimationNeverBlank();
     testEncodeSgr();
     testEncodeRoundTrip();
+    testSymbolicEscapes();
     testJson();
     testJsonEscapeAndBase64();
     testAiRequest();

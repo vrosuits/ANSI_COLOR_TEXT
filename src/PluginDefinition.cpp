@@ -23,6 +23,7 @@
 #include "menuCmdID.h"
 
 #include <commdlg.h>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -50,6 +51,42 @@ static std::string g_animBytes;       // full source being played back
 static size_t      g_animPos    = 0;  // bytes revealed so far
 static HWND        g_animSci    = nullptr;
 static bool        g_animRunning = false;
+static uintptr_t   g_animBufId  = 0;  // buffer being animated
+
+// ---------------------------------------------------------------------------
+// Non-destructive view model.
+//
+// The canonical content of an ANSI document is its raw byte stream (with real
+// ESC 0x1b bytes). Rendering to color USED to overwrite the Scintilla buffer
+// with escape-stripped text, which lost the source (so animation couldn't
+// restart, and editing the colored text destroyed the codes). Instead we keep
+// the raw source per Notepad++ buffer and treat the on-screen content as one of
+// three interchangeable VIEWS of it:
+//   - Color       : the rendered, colorized preview (read-only).
+//   - RawCodes    : the raw source with real ESC bytes (editable, == on disk).
+//   - RawSymbols  : the raw source with ESC shown as \e (editable, AI-friendly).
+// Saves always write the RawCodes form, whatever view is showing.
+// ---------------------------------------------------------------------------
+enum class ViewMode { Color, RawCodes, RawSymbols };
+
+struct BufState {
+    std::string rawEsc;                 // canonical source, real ESC bytes
+    ViewMode    mode   = ViewMode::RawCodes;
+    bool        hasRaw = false;         // rawEsc has been captured at least once
+};
+
+// Keyed by Notepad++ buffer id (NPPM_GETCURRENTBUFFERID / notification idFrom).
+static std::map<uintptr_t, BufState> g_bufStates;
+
+// While a save is in flight we temporarily swap the canonical raw into the view
+// so the file on disk is always real ANSI; this remembers what to restore after.
+struct SaveRestore {
+    bool      active = false;
+    HWND      h      = nullptr;
+    uintptr_t bufId  = 0;
+    ViewMode  mode   = ViewMode::RawCodes;
+};
+static SaveRestore g_saveRestore;
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -77,18 +114,20 @@ bool setCommand(size_t index, const TCHAR* cmdName, PFUNCPLUGINCMD pFunc, Shortc
 
 void commandMenuInit() {
     setCommand(0,  TEXT("Render ANSI Colors"),            renderAnsi,       nullptr, false);
-    setCommand(1,  TEXT("Play as Animation"),             playAnimation,    nullptr, false);
-    setCommand(2,  TEXT("Stop Animation"),                stopAnimationCmd, nullptr, false);
-    setCommand(3,  TEXT("Toggle Black/White Background"), toggleBackground, nullptr, false);
-    setCommand(4,  TEXT("Pause/Resume Blink"),            editFlash,        nullptr, false);
-    setCommand(5,  TEXT("Apply Color to Selection..."),   applyColor,       nullptr, false);
-    setCommand(6,  TEXT("Insert Reset Code"),             insertReset,      nullptr, false);
-    setCommand(7,  TEXT("Import ANSI File..."),           importAnsi,       nullptr, false);
-    setCommand(8,  TEXT("Export ANSI File..."),           exportAnsi,       nullptr, false);
-    setCommand(9,  TEXT("Generate ANSI with AI..."),      generateAnsiAi,   nullptr, false);
-    setCommand(10, TEXT("AI Settings..."),                aiSettings,       nullptr, false);
-    setCommand(11, TEXT("Settings..."),                   showSettings,     nullptr, false);
-    setCommand(12, TEXT("About"),                         showAbout,        nullptr, false);
+    setCommand(1,  TEXT("Show Raw - Escape Codes"),       renderRawCodes,   nullptr, false);
+    setCommand(2,  TEXT("Show Raw - \\e Symbols"),        renderRawSymbols, nullptr, false);
+    setCommand(3,  TEXT("Play as Animation"),             playAnimation,    nullptr, false);
+    setCommand(4,  TEXT("Stop Animation"),                stopAnimationCmd, nullptr, false);
+    setCommand(5,  TEXT("Toggle Black/White Background"), toggleBackground, nullptr, false);
+    setCommand(6,  TEXT("Pause/Resume Blink"),            editFlash,        nullptr, false);
+    setCommand(7,  TEXT("Apply Color to Selection..."),   applyColor,       nullptr, false);
+    setCommand(8,  TEXT("Insert Reset Code"),             insertReset,      nullptr, false);
+    setCommand(9,  TEXT("Import ANSI File..."),           importAnsi,       nullptr, false);
+    setCommand(10, TEXT("Export ANSI File..."),           exportAnsi,       nullptr, false);
+    setCommand(11, TEXT("Generate ANSI with AI..."),      generateAnsiAi,   nullptr, false);
+    setCommand(12, TEXT("AI Settings..."),                aiSettings,       nullptr, false);
+    setCommand(13, TEXT("Settings..."),                   showSettings,     nullptr, false);
+    setCommand(14, TEXT("About"),                         showAbout,        nullptr, false);
 }
 
 void commandMenuCleanUp() {}
@@ -234,12 +273,125 @@ VOID CALLBACK animTimerProc(HWND, UINT, UINT_PTR, DWORD) {
     ansi::StyleResult res = renderBytesToView(g_animSci, g_animBytes.substr(0, g_animPos));
 
     if (g_animPos >= g_animBytes.size()) {
-        // Final frame: stop and hand any blink ranges to the blink animator.
+        // Final frame: the view is now the full color render, so mark the buffer
+        // as a (read-only) Color view of the stored raw — that is what lets the
+        // animation be replayed later instead of reading back stripped text.
         stopAnimation();
+        sci(g_animSci, SCI_SETREADONLY, 1);
+        BufState& st = g_bufStates[g_animBufId];
+        st.rawEsc = g_animBytes;
+        st.hasRaw = true;
+        st.mode   = ViewMode::Color;
         g_blinkRanges = std::move(res.blinkRanges);
         g_blinkSci    = g_animSci;
         startBlink();
     }
+}
+
+// --- view model: render the raw source as one of three interchangeable views
+
+uintptr_t currentBufferId() {
+    return static_cast<uintptr_t>(
+        ::SendMessage(nppData._nppHandle, NPPM_GETCURRENTBUFFERID, 0, 0));
+}
+
+// Write `text` as plain, editable content with default styling (no ANSI styles
+// and no strike indicators left over from a prior color render).
+void setPlainText(HWND h, const std::string& text) {
+    ansi::Color defFore, defBack;
+    defaultsForBackground(g_settings.blackBackground, defFore, defBack);
+    sci(h, SCI_SETREADONLY, 0);
+    sci(h, SCI_SETCODEPAGE, SC_CP_UTF8);
+    sci(h, SCI_SETILEXER, 0, 0);
+    sci(h, SCI_STYLESETFORE, STYLE_DEFAULT, toColorRef(defFore));
+    sci(h, SCI_STYLESETBACK, STYLE_DEFAULT, toColorRef(defBack));
+    sci(h, SCI_STYLECLEARALL);
+    sci(h, SCI_CLEARALL);
+    sci(h, SCI_APPENDTEXT, static_cast<WPARAM>(text.size()),
+        reinterpret_cast<LPARAM>(text.data()));
+    sci(h, SCI_SETINDICATORCURRENT, kStrikeIndicator);
+    sci(h, SCI_INDICATORCLEARRANGE, 0, static_cast<LPARAM>(sci(h, SCI_GETLENGTH)));
+}
+
+// Capture the canonical raw (real ESC) for buffer `id` from the current view,
+// honoring its mode, store it, and return it. A Color view is a stripped preview
+// so we trust the stored raw; a symbolic view is converted back to real ESC.
+const std::string& captureRaw(HWND h, uintptr_t id) {
+    BufState& st = g_bufStates[id];
+    switch (st.mode) {
+        case ViewMode::Color:
+            if (!st.hasRaw) { st.rawEsc = readDocument(h); st.hasRaw = true; }
+            break;
+        case ViewMode::RawSymbols:
+            st.rawEsc = ansi::fromSymbolicEscapes(readDocument(h));
+            st.hasRaw = true;
+            break;
+        case ViewMode::RawCodes:
+        default:
+            st.rawEsc = readDocument(h);
+            st.hasRaw = true;
+            break;
+    }
+    return st.rawEsc;
+}
+
+// Show the colorized, read-only preview.
+void viewColor(HWND h, uintptr_t id) {
+    stopAnimation();
+    stopBlink();
+    g_blinkRanges.clear();
+    g_blinkSci = nullptr;
+
+    std::string raw = captureRaw(h, id);
+    ansi::StyleResult res = renderBytesToView(h, raw);
+    sci(h, SCI_SETREADONLY, 1);  // color is a preview; edit in a Raw view
+
+    g_bufStates[id].mode = ViewMode::Color;
+    g_blinkRanges = std::move(res.blinkRanges);
+    g_blinkSci    = h;
+    startBlink();
+
+    if (res.budgetExceeded) {
+        ::MessageBox(nppData._nppHandle,
+            TEXT("This file uses more distinct color/attribute combinations than ")
+            TEXT("the available style slots. Some runs were rendered with a fallback style."),
+            NPP_PLUGIN_NAME, MB_OK | MB_ICONINFORMATION);
+    }
+}
+
+// Show the raw source as editable text (real ESC bytes, or \e symbols).
+void viewRaw(HWND h, uintptr_t id, bool symbolic) {
+    stopAnimation();
+    stopBlink();
+    g_blinkRanges.clear();
+    g_blinkSci = nullptr;
+
+    std::string raw = captureRaw(h, id);
+    setPlainText(h, symbolic ? ansi::toSymbolicEscapes(raw) : raw);
+    g_bufStates[id].mode = symbolic ? ViewMode::RawSymbols : ViewMode::RawCodes;
+}
+
+// Before a save, swap the canonical raw (real ESC) into the active view so the
+// file on disk is always real ANSI regardless of the current view; restore after.
+void onFileBeforeSave(uintptr_t bufId) {
+    auto it = g_bufStates.find(bufId);
+    if (it == g_bufStates.end() || !it->second.hasRaw) return;
+    if (bufId != currentBufferId()) return;          // only the active view
+    if (it->second.mode == ViewMode::RawCodes) return;  // already canonical
+    HWND h = currentScintilla();
+    if (!h) return;
+    std::string raw = captureRaw(h, bufId);          // fold in any symbolic edits
+    g_saveRestore = SaveRestore{true, h, bufId, it->second.mode};
+    setPlainText(h, raw);
+}
+
+void onFileSaved(uintptr_t bufId) {
+    if (!g_saveRestore.active || g_saveRestore.bufId != bufId) return;
+    HWND     h = g_saveRestore.h;
+    ViewMode m = g_saveRestore.mode;
+    g_saveRestore.active = false;
+    if (m == ViewMode::Color)           viewColor(h, bufId);
+    else if (m == ViewMode::RawSymbols) viewRaw(h, bufId, true);
 }
 
 } // namespace
@@ -256,6 +408,23 @@ void persistSettings() {
 
 void reRenderCurrent() { renderAnsi(); }
 
+void handleNotification(SCNotification* n) {
+    if (!n) return;
+    switch (n->nmhdr.code) {
+        case NPPN_FILEBEFORESAVE:
+            onFileBeforeSave(static_cast<uintptr_t>(n->nmhdr.idFrom));
+            break;
+        case NPPN_FILESAVED:
+            onFileSaved(static_cast<uintptr_t>(n->nmhdr.idFrom));
+            break;
+        case NPPN_FILECLOSED:
+            g_bufStates.erase(static_cast<uintptr_t>(n->nmhdr.idFrom));
+            break;
+        default:
+            break;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
@@ -264,25 +433,21 @@ void renderAnsi() {
     ensureSettings();
     HWND h = currentScintilla();
     if (!h) return;
+    viewColor(h, currentBufferId());
+}
 
-    stopAnimation();
-    stopBlink();
-    g_blinkRanges.clear();
-    g_blinkSci = nullptr;
+void renderRawCodes() {
+    ensureSettings();
+    HWND h = currentScintilla();
+    if (!h) return;
+    viewRaw(h, currentBufferId(), /*symbolic=*/false);
+}
 
-    std::string raw = readDocument(h);
-    ansi::StyleResult res = renderBytesToView(h, raw);
-
-    g_blinkRanges = std::move(res.blinkRanges);
-    g_blinkSci    = h;
-    startBlink();
-
-    if (res.budgetExceeded) {
-        ::MessageBox(nppData._nppHandle,
-            TEXT("This file uses more distinct color/attribute combinations than ")
-            TEXT("the available style slots. Some runs were rendered with a fallback style."),
-            NPP_PLUGIN_NAME, MB_OK | MB_ICONINFORMATION);
-    }
+void renderRawSymbols() {
+    ensureSettings();
+    HWND h = currentScintilla();
+    if (!h) return;
+    viewRaw(h, currentBufferId(), /*symbolic=*/true);
 }
 
 void playAnimation() {
@@ -290,15 +455,20 @@ void playAnimation() {
     HWND h = currentScintilla();
     if (!h) return;
 
+    uintptr_t id = currentBufferId();
     stopAnimation();
     stopBlink();
     g_blinkRanges.clear();
     g_blinkSci = nullptr;
 
-    g_animBytes = readDocument(h);
+    // Replay from the canonical raw source (works even if the current view is the
+    // finished color render — that is what fixes "animation won't restart").
+    g_animBytes = captureRaw(h, id);
     g_animPos   = 0;
     g_animSci   = h;
+    g_animBufId = id;
     if (g_animBytes.empty()) return;
+    sci(h, SCI_SETREADONLY, 0);   // frames rewrite the buffer as they reveal
 
     UINT delay = static_cast<UINT>(g_settings.animDelayMs);
     g_animRunning = ::SetTimer(nppData._nppHandle, kAnimTimerId, delay, animTimerProc) != 0;
@@ -307,9 +477,14 @@ void playAnimation() {
 void stopAnimationCmd() {
     if (!g_animRunning) return;
     stopAnimation();
-    // Reveal the whole document immediately on the final frame.
+    // Reveal the whole document immediately as the final (color) frame.
     if (g_animSci && !g_animBytes.empty()) {
         ansi::StyleResult res = renderBytesToView(g_animSci, g_animBytes);
+        sci(g_animSci, SCI_SETREADONLY, 1);
+        BufState& st = g_bufStates[g_animBufId];
+        st.rawEsc = g_animBytes;
+        st.hasRaw = true;
+        st.mode   = ViewMode::Color;
         g_blinkRanges = std::move(res.blinkRanges);
         g_blinkSci    = g_animSci;
         startBlink();
@@ -320,7 +495,13 @@ void toggleBackground() {
     ensureSettings();
     g_settings.blackBackground = !g_settings.blackBackground;
     persistSettings();
-    renderAnsi();
+    HWND h = currentScintilla();
+    if (!h) return;
+    // Re-show whatever view is active under the new background.
+    uintptr_t id = currentBufferId();
+    ViewMode m = g_bufStates[id].mode;
+    if (m == ViewMode::Color) viewColor(h, id);
+    else                      viewRaw(h, id, m == ViewMode::RawSymbols);
 }
 
 void editFlash() {

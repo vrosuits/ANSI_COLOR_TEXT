@@ -22,7 +22,7 @@
 const TCHAR NPP_PLUGIN_NAME[] = TEXT("ANSI Color Text");
 
 // Number of menu commands exposed by the plugin (see commandMenuInit).
-const int nbFunc = 13;
+const int nbFunc = 15;
 
 // Lifecycle.
 void pluginInit(HANDLE hModule);
@@ -32,7 +32,9 @@ void commandMenuCleanUp();
 bool setCommand(size_t index, const TCHAR* cmdName, PFUNCPLUGINCMD pFunc, ShortcutKey* sk, bool checkOnInit);
 
 // Menu command handlers.
-void renderAnsi();         // parse + colorize the current document
+void renderAnsi();         // colorize the current document (read-only color view)
+void renderRawCodes();     // show the raw ANSI source with real ESC bytes (editable)
+void renderRawSymbols();   // show the raw ANSI source with ESC shown as \e (editable)
 void playAnimation();      // play the document as a timed ANSI animation
 void stopAnimationCmd();   // stop a running animation
 void toggleBackground();   // switch black <-> white background and re-render
@@ -63,3 +65,8 @@ void applyAttrToSelection(const ansi::Attr& a);
 // Open `ansiText` in a new Notepad++ tab, then render it (or play it as an
 // animation). Called by the AI generate flow.
 void openInNewTabAndRender(const std::string& ansiText, bool animate);
+
+// Handle a Notepad++/Scintilla notification (forwarded from beNotified). Used to
+// keep saves writing canonical raw ANSI regardless of the current view mode, and
+// to drop per-buffer state when a buffer closes.
+void handleNotification(SCNotification* n);
