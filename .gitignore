@@ -34,3 +34,7 @@ CLAUDE.local.md
 
 # Claude conversation exports
 *-local-command-caveat*.txt
+
+# Claude Code agent worktrees and skill-creator eval workspaces (local scratch)
+.claude/worktrees/
+.claude/skills/*-workspace/
