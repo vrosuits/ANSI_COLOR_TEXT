@@ -30,6 +30,7 @@
 #define IDC_BLINK           1017
 #define IDC_ANIMDELAY       1018
 #define IDC_ANIMCHUNK       1019
+#define IDC_DEFAULTVIEW     1020
 
 // Editor (apply-color) dialog.
 #define IDC_FG_SET          1030
