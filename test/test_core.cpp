@@ -398,6 +398,18 @@ static void testSymbolicEscapes() {
     CHECK(fromSymbolicEscapes("^[[m") == "\x1b[m");             // caret notation
     // A bare "ESC" not introducing a sequence is left alone (avoid false hits).
     CHECK(fromSymbolicEscapes("ESCAPE") == "ESCAPE");
+
+    // General \xHH byte escapes: a model that escapes the UTF-8 bytes of a box
+    // glyph (U+2550 = E2 95 90) must come back as the real character, not text.
+    CHECK(fromSymbolicEscapes("\\xE2\\x95\\x90") == "\xE2\x95\x90");
+    CHECK(fromSymbolicEscapes("a\\x89b") == "a\x89""b");
+    CHECK(fromSymbolicEscapes("\\xe2\\x95\\x90") == "\xE2\x95\x90");  // lowercase hex
+    // General \uXXXX -> real UTF-8 (also a box glyph).
+    CHECK(fromSymbolicEscapes("\\u2550") == "\xE2\x95\x90");
+    // A bad/short hex escape is left literal rather than corrupting text.
+    CHECK(fromSymbolicEscapes("\\xZZ") == "\\xZZ");
+    // Real characters pass through untouched (no double-decoding).
+    CHECK(fromSymbolicEscapes("\xE2\x95\x90") == "\xE2\x95\x90");
 }
 
 int main() {
