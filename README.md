@@ -59,8 +59,8 @@ current source to a file.
 ## Installation
 
 1. Download `ANSI_COLOR_TEXT.dll` (x64) from the
-   [**v1.0.2 release**](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/tag/v1.0.2)
-   ([direct link](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/download/v1.0.2/ANSI_COLOR_TEXT.dll)),
+   [**v1.1.0 release**](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/tag/v1.1.0)
+   ([direct link](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/download/v1.1.0/ANSI_COLOR_TEXT.dll)),
    or build it yourself (see [Building](#building)).
 2. Copy it into your Notepad++ install at
    `plugins\ANSI_COLOR_TEXT\ANSI_COLOR_TEXT.dll`.
