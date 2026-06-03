@@ -102,9 +102,19 @@ The output is `build\ANSI_COLOR_TEXT.dll`.
 
 ## Usage
 
-Open a file containing ANSI escape sequences (try `samples/16color.ans`,
-`samples/truecolor.ans`, or the animated `samples/animation.ans`) and run
-**Render ANSI Colors** — or **Play as Animation** for the animated sample.
+Open a file containing ANSI escape sequences and run **Render ANSI Colors** — or
+**Play as Animation** for the animated ones. Bundled `samples/`:
+
+| File | Shows off |
+| --- | --- |
+| `16color.ans` | Basic 16-color SGR. |
+| `truecolor.ans` | 24-bit true color. |
+| `unicode-boxes.ans` | Unicode box-drawing (single/double/rounded) + shading blocks. |
+| `truecolor-banner.ans` | A smooth 24-bit hue gradient and gradient text. |
+| `blocks-sunset.ans` | A half-block "image" (two true-color pixels per cell via `▀`). |
+| `animation.ans` | The original cursor-addressed animation. |
+| `spinner-anim.ans` | **Play as Animation** — spinner + progress bar. |
+| `rainbow-wave-anim.ans` | **Play as Animation** — a moving true-color sine wave. |
 
 Rendering rewrites the in-editor buffer with escape-stripped, styled text; the
 file on disk is untouched unless you save.
