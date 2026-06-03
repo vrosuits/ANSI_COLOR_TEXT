@@ -29,6 +29,7 @@ struct AiProviderSettings {
     std::string baseUrl;
     std::string model;
     std::string apiKeyEnc;
+    std::string systemPrompt;  // custom system prompt; empty = built-in default
 };
 
 // All plugin-tunable options in one place.

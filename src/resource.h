@@ -49,6 +49,8 @@
 #define IDC_AI_BASE         1051
 #define IDC_AI_MODEL        1052
 #define IDC_AI_KEY          1053
+#define IDC_AI_SYSPROMPT    1054
+#define IDC_AI_LOADDEFAULT  1055
 
 // Generate-with-AI dialog.
 #define IDC_GEN_PROMPT      1060

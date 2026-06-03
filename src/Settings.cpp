@@ -14,6 +14,7 @@
 
 #include "Settings.h"
 #include "AiClient.h"
+#include "AiJson.h"   // base64 (system prompt is stored base64 so it is INI-safe)
 
 #include <string>
 #include <vector>
@@ -103,6 +104,8 @@ void loadSettings(const TCHAR* configDir, PluginSettings& s) {
         s.ai[i].baseUrl   = getStr(path, aiKey(idx, TEXT("base")).c_str(),  defs[i].baseUrl);
         s.ai[i].model     = getStr(path, aiKey(idx, TEXT("model")).c_str(), defs[i].model);
         s.ai[i].apiKeyEnc = getStr(path, aiKey(idx, TEXT("key")).c_str(),   std::string());
+        std::string promptB64 = getStr(path, aiKey(idx, TEXT("prompt")).c_str(), std::string());
+        s.ai[i].systemPrompt  = promptB64.empty() ? std::string() : ansi::base64Decode(promptB64);
     }
     s.aiSelected = getInt(path, TEXT("aiSelected"), 0);
     if (s.aiSelected < 0 || s.aiSelected >= static_cast<int>(s.ai.size())) s.aiSelected = 0;
@@ -127,5 +130,8 @@ void saveSettings(const TCHAR* configDir, const PluginSettings& s) {
         putStr(path, aiKey(idx, TEXT("base")).c_str(),  s.ai[i].baseUrl);
         putStr(path, aiKey(idx, TEXT("model")).c_str(), s.ai[i].model);
         putStr(path, aiKey(idx, TEXT("key")).c_str(),   s.ai[i].apiKeyEnc);
+        putStr(path, aiKey(idx, TEXT("prompt")).c_str(),
+               s.ai[i].systemPrompt.empty() ? std::string()
+                                            : ansi::base64Encode(s.ai[i].systemPrompt));
     }
 }

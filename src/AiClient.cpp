@@ -44,9 +44,13 @@ std::vector<AiProvider> defaultProviders() {
 std::string aiSystemPrompt(bool animation) {
     std::string p =
         "You are an expert ANSI/SGR text artist. You output raw ANSI text only - "
-        "no Markdown, no code fences, no explanations.\n\n"
-        "Use real ANSI escape sequences with the ESC (0x1b) control byte, e.g. "
-        "ESC[31m for red, ESC[0m to reset.\n"
+        "no Markdown, no code fences, no explanations, no commentary.\n\n"
+        "CRITICAL - the escape character: every sequence begins with the ESC "
+        "control character, byte value 0x1b. Emit the actual 0x1b byte. If your "
+        "tokenizer cannot produce a raw control byte, write the three letters "
+        "ESC immediately followed by '[' (e.g. ESC[31m) and nothing else - do NOT "
+        "write \\e, \\033, \\x1b, or the word 'escape'. Example: ESC[31m sets red, "
+        "ESC[0m resets.\n"
         "Color: 16-color (30-37/90-97 fg, 40-47/100-107 bg), 256-color "
         "(ESC[38;5;Nm / ESC[48;5;Nm), and 24-bit true color "
         "(ESC[38;2;R;G;Bm / ESC[48;2;R;G;Bm).\n"
