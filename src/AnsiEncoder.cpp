@@ -114,4 +114,56 @@ std::string encode(const ParsedDocument& doc) {
     return out;
 }
 
+std::string toSymbolicEscapes(const std::string& withEsc) {
+    std::string out;
+    out.reserve(withEsc.size() + 8);
+    for (char c : withEsc) {
+        if (c == '\x1b')    out += "\\e";
+        else if (c == '\\') out += "\\\\";
+        else                out += c;
+    }
+    return out;
+}
+
+std::string fromSymbolicEscapes(const std::string& s) {
+    auto eqi = [](char a, char b) {  // ASCII case-insensitive compare
+        return (a | 0x20) == (b | 0x20);
+    };
+    std::string out;
+    out.reserve(s.size());
+    const size_t n = s.size();
+    for (size_t i = 0; i < n;) {
+        char c = s[i];
+        if (c == '\\' && i + 1 < n) {
+            char d = s[i + 1];
+            if (d == '\\')             { out += '\\';   i += 2; continue; }
+            if (d == 'e' || d == 'E')  { out += '\x1b'; i += 2; continue; }
+            if ((d == 'x' || d == 'X') && i + 3 < n &&
+                s[i + 2] == '1' && (s[i + 3] == 'b' || s[i + 3] == 'B')) {
+                out += '\x1b'; i += 4; continue;
+            }
+            if ((d == 'u' || d == 'U') && i + 5 < n &&
+                s[i + 2] == '0' && s[i + 3] == '0' && s[i + 4] == '1' &&
+                (s[i + 5] == 'b' || s[i + 5] == 'B')) {
+                out += '\x1b'; i += 6; continue;
+            }
+            if (d == '0' && i + 3 < n && s[i + 2] == '3' && s[i + 3] == '3') {
+                bool more = (i + 4 < n) && s[i + 4] >= '0' && s[i + 4] <= '7';
+                if (!more) { out += '\x1b'; i += 4; continue; }
+            }
+            out += c; ++i; continue;  // unrecognized backslash sequence: keep literal
+        }
+        if (c == '^' && i + 1 < n && s[i + 1] == '[') { out += '\x1b'; i += 2; continue; }
+        // Bare ESC/Esc/esc that introduces a CSI ('[') or OSC (']') sequence —
+        // the form some AI models emit instead of a real control byte.
+        if ((c == 'E' || c == 'e') && i + 3 < n &&
+            eqi(s[i + 1], 's') && eqi(s[i + 2], 'c') &&
+            (s[i + 3] == '[' || s[i + 3] == ']')) {
+            out += '\x1b'; i += 3; continue;
+        }
+        out += c; ++i;
+    }
+    return out;
+}
+
 } // namespace ansi

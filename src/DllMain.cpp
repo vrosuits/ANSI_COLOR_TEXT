@@ -47,8 +47,8 @@ extern "C" __declspec(dllexport) FuncItem* getFuncsArray(int* nbF) {
     return funcItem;
 }
 
-extern "C" __declspec(dllexport) void beNotified(SCNotification* /*notifyCode*/) {
-    // No document/UI notifications are handled yet.
+extern "C" __declspec(dllexport) void beNotified(SCNotification* notifyCode) {
+    handleNotification(notifyCode);
 }
 
 extern "C" __declspec(dllexport) LRESULT messageProc(UINT /*Message*/, WPARAM /*wParam*/, LPARAM /*lParam*/) {
