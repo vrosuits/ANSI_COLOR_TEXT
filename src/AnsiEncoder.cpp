@@ -70,6 +70,33 @@ std::string paramsToSgr(const std::vector<int>& p) {
     return s;
 }
 
+// Hex digit value, or -1.
+int hexVal(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+// Append Unicode code point `cp` to `out` as UTF-8.
+void appendUtf8(std::string& out, unsigned cp) {
+    if (cp <= 0x7Fu) {
+        out += static_cast<char>(cp);
+    } else if (cp <= 0x7FFu) {
+        out += static_cast<char>(0xC0u | (cp >> 6));
+        out += static_cast<char>(0x80u | (cp & 0x3Fu));
+    } else if (cp <= 0xFFFFu) {
+        out += static_cast<char>(0xE0u | (cp >> 12));
+        out += static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu));
+        out += static_cast<char>(0x80u | (cp & 0x3Fu));
+    } else {
+        out += static_cast<char>(0xF0u | (cp >> 18));
+        out += static_cast<char>(0x80u | ((cp >> 12) & 0x3Fu));
+        out += static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu));
+        out += static_cast<char>(0x80u | (cp & 0x3Fu));
+    }
+}
+
 } // namespace
 
 std::string encodeSgr(const Attr& a) {
@@ -136,20 +163,37 @@ std::string fromSymbolicEscapes(const std::string& s) {
         char c = s[i];
         if (c == '\\' && i + 1 < n) {
             char d = s[i + 1];
-            if (d == '\\')             { out += '\\';   i += 2; continue; }
-            if (d == 'e' || d == 'E')  { out += '\x1b'; i += 2; continue; }
-            if ((d == 'x' || d == 'X') && i + 3 < n &&
-                s[i + 2] == '1' && (s[i + 3] == 'b' || s[i + 3] == 'B')) {
-                out += '\x1b'; i += 4; continue;
+            if (d == '\\')            { out += '\\';   i += 2; continue; }
+            if (d == 'e' || d == 'E') { out += '\x1b'; i += 2; continue; }
+            // \xHH - any single byte (HH hex). This is how models commonly escape
+            // both ESC (\x1b) and the UTF-8 bytes of box/shading glyphs
+            // (e.g. \xE2\x95\x90 == U+2550). Decode every such byte to its value.
+            if (d == 'x' || d == 'X') {
+                int h1 = (i + 2 < n) ? hexVal(s[i + 2]) : -1;
+                int h2 = (i + 3 < n) ? hexVal(s[i + 3]) : -1;
+                if (h1 >= 0 && h2 >= 0) {
+                    out += static_cast<char>(h1 * 16 + h2);
+                    i += 4; continue;
+                }
             }
-            if ((d == 'u' || d == 'U') && i + 5 < n &&
-                s[i + 2] == '0' && s[i + 3] == '0' && s[i + 4] == '1' &&
-                (s[i + 5] == 'b' || s[i + 5] == 'B')) {
-                out += '\x1b'; i += 6; continue;
+            // \uXXXX - any code point, emitted as real UTF-8.
+            if (d == 'u' || d == 'U') {
+                if (i + 5 < n) {
+                    int a = hexVal(s[i+2]), b = hexVal(s[i+3]);
+                    int e = hexVal(s[i+4]), f = hexVal(s[i+5]);
+                    if (a >= 0 && b >= 0 && e >= 0 && f >= 0) {
+                        appendUtf8(out, static_cast<unsigned>((a<<12)|(b<<8)|(e<<4)|f));
+                        i += 6; continue;
+                    }
+                }
             }
-            if (d == '0' && i + 3 < n && s[i + 2] == '3' && s[i + 3] == '3') {
-                bool more = (i + 4 < n) && s[i + 4] >= '0' && s[i + 4] <= '7';
-                if (!more) { out += '\x1b'; i += 4; continue; }
+            // \NNN octal (e.g. \033 == ESC), 1-3 octal digits.
+            if (d >= '0' && d <= '7') {
+                int val = d - '0'; size_t j = i + 2;
+                for (int k = 0; k < 2 && j < n && s[j] >= '0' && s[j] <= '7'; ++k, ++j)
+                    val = val * 8 + (s[j] - '0');
+                out += static_cast<char>(val & 0xFF);
+                i = j; continue;
             }
             out += c; ++i; continue;  // unrecognized backslash sequence: keep literal
         }
