@@ -1,6 +1,6 @@
 ---
 name: build-test
-description: Build this Notepad++ ANSI Color Text plugin and run its tests. Use whenever asked to build, compile, rebuild, run tests, run the self-test, check that the code still compiles, or verify a change before committing — covers both the fast host-only core build and the full Windows DLL build. Reach for this instead of guessing cmake invocations, because a plain `cmake --build` fails here without the vcvars environment.
+description: Build the ANSI Color Text Notepad++ plugin and run its tests to confirm the code actually compiles and passes — an action you run on this repo, not advice you give. Use whenever the user wants to build, compile, rebuild, or run the tests / host self-test here — for example "does this still compile?", "run ctest before I commit", "make sure my AiHttp change didn't break the link", "quick sanity check the core still builds". Covers both the fast vcvars-free clang++ core build and the full MSVC _build.bat DLL build, and avoids the trap that a bare `cmake --build` fails here without the vcvars environment. NOT for authoring CI workflows, writing new test cases, explaining the build setup, installing the DLL into Notepad++, or debugging runtime crashes — only for actually running the build/tests.
 ---
 
 # Build & test the ANSI Color Text plugin
