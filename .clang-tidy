@@ -1,0 +1,24 @@
+# Semantic linting for the ANSI Color Text plugin. Focused on real bugs,
+# performance, and a few safe modernizations; formatting is left to
+# .clang-format (which intentionally preserves the hand-aligned style).
+#
+# Run against the core (host-buildable) files standalone, or against the whole
+# tree using a compile database:
+#   cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ...   (via vcvars)
+#   clang-tidy -p build src/AnsiScreen.cpp
+Checks: >
+  bugprone-*,
+  performance-*,
+  portability-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-emplace,
+  modernize-use-using,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -performance-no-int-to-ptr,
+  -misc-no-recursion,
+  -misc-include-cleaner
+WarningsAsErrors: ''
+HeaderFilterRegex: 'src/.*\.h$'
+FormatStyle: file
