@@ -301,8 +301,8 @@ ParsedDocument renderScreen(const std::string& input, const ScreenConfig& cfg) {
                         case 'm': applySgr(sgrParams(body), attr); scr.setAttr(attr); break;
                         case 'A': scr.moveUp(firstParam(body, 1));    break;
                         case 'B': scr.moveDown(firstParam(body, 1));  break;
-                        case 'C': scr.moveRight(firstParam(body, 1)); break;
-                        case 'a': scr.moveRight(firstParam(body, 1)); break; // HPR
+                        case 'C':                                     // CUF
+                        case 'a': scr.moveRight(firstParam(body, 1)); break; // a = HPR
                         case 'D': scr.moveLeft(firstParam(body, 1));  break;
                         case 'E': scr.carriageReturn(); scr.moveDown(firstParam(body, 1)); break;
                         case 'F': scr.carriageReturn(); scr.moveUp(firstParam(body, 1));   break;
