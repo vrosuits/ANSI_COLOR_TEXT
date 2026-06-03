@@ -59,8 +59,8 @@ current source to a file.
 ## Installation
 
 1. Download `ANSI_COLOR_TEXT.dll` (x64) from the
-   [**v1.0.1 release**](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/tag/v1.0.1)
-   ([direct link](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/download/v1.0.1/ANSI_COLOR_TEXT.dll)),
+   [**v1.0.2 release**](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/tag/v1.0.2)
+   ([direct link](https://github.com/vrosuits/ANSI_COLOR_TEXT/releases/download/v1.0.2/ANSI_COLOR_TEXT.dll)),
    or build it yourself (see [Building](#building)).
 2. Copy it into your Notepad++ install at
    `plugins\ANSI_COLOR_TEXT\ANSI_COLOR_TEXT.dll`.
@@ -123,6 +123,13 @@ file on disk is untouched unless you save.
 | `src/PluginDefinition.*`, `src/DllMain.cpp` | Notepad++ plugin glue, exports, timers. |
 | `src/SettingsDialog.*`, `src/resource.h`, `src/*.rc` | Win32 settings dialog. |
 | `test/test_core.cpp` | Host self-test for the core. |
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md). The version is the single number in
+`project(... VERSION)` in `CMakeLists.txt`; it is embedded in the DLL (shown in
+Notepad++'s Plugins Admin and the About box), and a release is published by
+pushing a matching `vX.Y.Z` tag.
 
 ## License
 

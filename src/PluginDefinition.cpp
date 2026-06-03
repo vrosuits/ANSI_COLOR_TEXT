@@ -16,6 +16,7 @@
 #include "AnsiScreen.h"
 #include "AnsiStyler.h"
 #include "AnsiEncoder.h"
+#include "Version.h"   // generated; ANSI_VER_WIDE
 
 #include "Scintilla.h"
 #include "Notepad_plus_msgs.h"
@@ -336,7 +337,7 @@ void editFlash() {
 
 void showAbout() {
     ::MessageBox(nppData._nppHandle,
-        TEXT("ANSI Color Text\r\n\r\n")
+        TEXT("ANSI Color Text  v") ANSI_VER_WIDE TEXT("\r\n\r\n")
         TEXT("Renders and edits ANSI/SGR-colored text in Notepad++ (16 / 256 / true ")
         TEXT("color, bold, italic, underline, strikethrough, inverse, blink).\r\n\r\n")
         TEXT("Virtual-screen renderer with cursor positioning, scroll regions, tab ")
