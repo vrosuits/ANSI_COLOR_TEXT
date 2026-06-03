@@ -19,6 +19,8 @@
 #include "AnsiPalette.h"
 #include "AnsiStyler.h"
 #include "AnsiEncoder.h"
+#include "AiJson.h"
+#include "AiClient.h"
 
 #include <cstdio>
 #include <vector>
@@ -295,12 +297,99 @@ static void testEncodeRoundTrip() {
     CHECK(flatten(a) == flatten(b));
 }
 
+static void testJson() {
+    JsonValue v;
+    CHECK(parseJson("{\"a\":1,\"b\":[true,\"hi\\n\"],\"c\":{\"d\":\"x\"}}", v));
+    CHECK(v.isObject());
+    CHECK(v.find("a") && v.find("a")->type == JsonValue::Type::Number);
+    const JsonValue* b = v.find("b");
+    CHECK(b && b->isArray() && b->at(1) && b->at(1)->asString() == "hi\n");
+    const JsonValue* c = v.find("c");
+    CHECK(c && c->find("d") && c->find("d")->asString() == "x");
+    // Unicode escape decodes to UTF-8.
+    JsonValue u;
+    CHECK(parseJson("\"\\u00e9\"", u));   // e-acute
+    CHECK(u.asString() == "\xc3\xa9");
+    // Malformed input is rejected.
+    JsonValue bad;
+    CHECK(!parseJson("{\"a\":}", bad));
+}
+
+static void testJsonEscapeAndBase64() {
+    CHECK(jsonEscape("a\"b\\c\n") == "a\\\"b\\\\c\\n");
+    // base64 round-trips arbitrary bytes.
+    std::string raw = std::string("\x00\x01\x02hello\xff", 9);
+    CHECK(base64Decode(base64Encode(raw)) == raw);
+    CHECK(base64Encode("Man") == "TWFu");
+}
+
+static void testAiRequest() {
+    std::vector<AiProvider> ps = defaultProviders();
+    CHECK(ps.size() == 5);
+
+    // OpenAI-compatible shape.
+    AiProvider openai{"OpenAI", AiKind::OpenAICompatible, "https://api.openai.com/", "KEY", "gpt-4o"};
+    AiRequest r = buildRequest(openai, "SYS", "USER");
+    CHECK(r.url == "https://api.openai.com/v1/chat/completions"); // trailing slash trimmed
+    bool hasAuth = false;
+    for (const std::string& h : r.headers) if (h == "Authorization: Bearer KEY") hasAuth = true;
+    CHECK(hasAuth);
+    CHECK(r.body.find("\"model\":\"gpt-4o\"") != std::string::npos);
+    CHECK(r.body.find("\"role\":\"system\"") != std::string::npos);
+
+    // Anthropic shape.
+    AiProvider ant{"Anthropic", AiKind::Anthropic, "https://api.anthropic.com", "K2", "claude"};
+    AiRequest ra = buildRequest(ant, "SYS", "USER");
+    CHECK(ra.url == "https://api.anthropic.com/v1/messages");
+    bool hasKey = false, hasVer = false;
+    for (const std::string& h : ra.headers) {
+        if (h == "x-api-key: K2") hasKey = true;
+        if (h == "anthropic-version: 2023-06-01") hasVer = true;
+    }
+    CHECK(hasKey && hasVer);
+    CHECK(ra.body.find("\"max_tokens\"") != std::string::npos);
+}
+
+static void testAiResponse() {
+    // OpenAI-compatible success.
+    AiResult a = parseResponse(AiKind::OpenAICompatible,
+        "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"HELLO\"}}]}", 200);
+    CHECK(a.ok && a.text == "HELLO");
+
+    // Anthropic success.
+    AiResult b = parseResponse(AiKind::Anthropic,
+        "{\"content\":[{\"type\":\"text\",\"text\":\"HI\"}]}", 200);
+    CHECK(b.ok && b.text == "HI");
+
+    // Error object surfaces the message.
+    AiResult e = parseResponse(AiKind::OpenAICompatible,
+        "{\"error\":{\"message\":\"bad key\"}}", 401);
+    CHECK(!e.ok && e.error == "bad key");
+}
+
+static void testFenceAndEscapes() {
+    CHECK(stripCodeFence("```ansi\nBODY\n```") == "BODY");
+    CHECK(stripCodeFence("no fence here") == "no fence here");
+    // Textual escapes -> real ESC byte.
+    CHECK(normalizeEscapes("\\e[31mX") == "\x1b[31mX");
+    CHECK(normalizeEscapes("\\033[0m") == "\x1b[0m");
+    CHECK(normalizeEscapes("\\x1b[1m") == "\x1b[1m");
+    CHECK(normalizeEscapes("\\u001b[7m") == "\x1b[7m");
+    // A real ESC is preserved.
+    CHECK(normalizeEscapes("\x1b[5m") == "\x1b[5m");
+}
+
 int main() {
     testPalette();
     testFrameBoundary();
     testAnimationNeverBlank();
     testEncodeSgr();
     testEncodeRoundTrip();
+    testJson();
+    testJsonEscapeAndBase64();
+    testAiRequest();
+    testAiResponse();
+    testFenceAndEscapes();
     testScreenBasics();
     testScreenAbsolutePos();
     testScreenCursorMoves();

@@ -17,6 +17,8 @@
 
 #define IDD_SETTINGS        1001
 #define IDD_EDITOR          1002
+#define IDD_AI              1003
+#define IDD_GENERATE        1004
 
 #define IDC_MAXWIDTH        1010
 #define IDC_HEIGHT          1011
@@ -40,3 +42,14 @@
 #define IDC_AT_BLINK        1037
 #define IDC_AT_INVERSE      1038
 #define IDC_AT_STRIKE       1039
+
+// AI settings dialog.
+#define IDC_AI_PROVIDER     1050
+#define IDC_AI_BASE         1051
+#define IDC_AI_MODEL        1052
+#define IDC_AI_KEY          1053
+
+// Generate-with-AI dialog.
+#define IDC_GEN_PROMPT      1060
+#define IDC_GEN_ANIMATION   1061
+#define IDC_GEN_PROVIDER    1062

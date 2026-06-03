@@ -22,7 +22,7 @@
 const TCHAR NPP_PLUGIN_NAME[] = TEXT("ANSI Color Text");
 
 // Number of menu commands exposed by the plugin (see commandMenuInit).
-const int nbFunc = 11;
+const int nbFunc = 13;
 
 // Lifecycle.
 void pluginInit(HANDLE hModule);
@@ -41,6 +41,8 @@ void applyColor();         // open the editor dialog to color the selection
 void insertReset();        // insert an ESC[0m reset at the caret
 void importAnsi();         // open an ANSI file into Notepad++
 void exportAnsi();         // write the current buffer to an ANSI file
+void generateAnsiAi();     // generate ANSI art/animation via an AI provider
+void aiSettings();         // configure AI providers (AiDialogs.cpp)
 void showSettings();       // open the settings dialog (SettingsDialog.cpp)
 void showAbout();
 
@@ -57,3 +59,7 @@ void reRenderCurrent();  // re-render the active document with current settings
 // Wrap the current Scintilla selection with the SGR sequence for `a` plus a
 // reset, inserting real escape bytes. Called by the editor dialog.
 void applyAttrToSelection(const ansi::Attr& a);
+
+// Open `ansiText` in a new Notepad++ tab, then render it (or play it as an
+// animation). Called by the AI generate flow.
+void openInNewTabAndRender(const std::string& ansiText, bool animate);

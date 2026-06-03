@@ -72,3 +72,34 @@ BEGIN
     DEFPUSHBUTTON   "Apply", IDOK, 82, 138, 50, 14
     PUSHBUTTON      "Cancel", IDCANCEL, 138, 138, 50, 14
 END
+
+IDD_AI DIALOGEX 0, 0, 260, 130
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "AI Settings"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "Provider:", -1, 12, 14, 50, 9
+    COMBOBOX        IDC_AI_PROVIDER, 70, 12, 178, 80, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Base URL:", -1, 12, 34, 50, 9
+    EDITTEXT        IDC_AI_BASE, 70, 32, 178, 12, ES_AUTOHSCROLL
+    LTEXT           "Model:", -1, 12, 52, 50, 9
+    EDITTEXT        IDC_AI_MODEL, 70, 50, 178, 12, ES_AUTOHSCROLL
+    LTEXT           "API key:", -1, 12, 70, 50, 9
+    EDITTEXT        IDC_AI_KEY, 70, 68, 178, 12, ES_AUTOHSCROLL | ES_PASSWORD
+    LTEXT           "Keys are stored DPAPI-encrypted (per Windows user). Ollama local needs no key.", -1, 12, 88, 236, 18
+    DEFPUSHBUTTON   "Save", IDOK, 142, 108, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 198, 108, 50, 14
+END
+
+IDD_GENERATE DIALOGEX 0, 0, 260, 160
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Generate ANSI with AI"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "Describe the ANSI art or animation to generate:", -1, 12, 10, 236, 9
+    EDITTEXT        IDC_GEN_PROMPT, 12, 22, 236, 90, ES_MULTILINE | ES_WANTRETURN | ES_AUTOVSCROLL | WS_VSCROLL
+    AUTOCHECKBOX    "Generate as animation", IDC_GEN_ANIMATION, 12, 118, 130, 10
+    LTEXT           "", IDC_GEN_PROVIDER, 12, 132, 236, 9
+    DEFPUSHBUTTON   "Generate", IDOK, 142, 140, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 198, 140, 50, 14
+END
